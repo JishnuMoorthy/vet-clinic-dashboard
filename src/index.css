@@ -2,30 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Mia VMS — Healthcare-inspired design system. All colors HSL. */
+/* Mia VMS — Koernig-inspired warm palette. All colors HSL. */
 
 @layer base {
   :root {
-    --background: 0 0% 99%;
-    --foreground: 200 25% 10%;
+    /* Sustainable Linen #FAF3E1 → 43 76% 93% */
+    --background: 43 76% 93%;
+    /* Black Hole #222222 → 0 0% 13% */
+    --foreground: 0 0% 13%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 200 25% 10%;
+    --card: 43 60% 96%;
+    --card-foreground: 0 0% 13%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 200 25% 10%;
+    --popover: 43 60% 96%;
+    --popover-foreground: 0 0% 13%;
 
-    --primary: 174 62% 38%;
+    /* Electric Tangerine #FF6D1F → 21 100% 56% */
+    --primary: 21 100% 56%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 200 20% 95%;
-    --secondary-foreground: 200 25% 15%;
+    /* Recycled Cotton #F5E7C6 → 39 72% 87% */
+    --secondary: 39 72% 87%;
+    --secondary-foreground: 0 0% 13%;
 
-    --muted: 200 15% 95%;
-    --muted-foreground: 200 10% 45%;
+    --muted: 39 50% 90%;
+    --muted-foreground: 30 10% 40%;
 
-    --accent: 174 40% 92%;
-    --accent-foreground: 174 62% 25%;
+    --accent: 39 60% 90%;
+    --accent-foreground: 21 80% 35%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
@@ -36,43 +40,43 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 200 18% 90%;
-    --input: 200 18% 90%;
-    --ring: 174 62% 38%;
+    --border: 39 40% 82%;
+    --input: 39 40% 82%;
+    --ring: 21 100% 56%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 200 25% 12%;
-    --sidebar-foreground: 200 10% 85%;
-    --sidebar-primary: 174 62% 48%;
+    --sidebar-background: 0 0% 13%;
+    --sidebar-foreground: 43 40% 85%;
+    --sidebar-primary: 21 100% 56%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 200 20% 18%;
-    --sidebar-accent-foreground: 200 10% 90%;
-    --sidebar-border: 200 15% 20%;
-    --sidebar-ring: 174 62% 48%;
+    --sidebar-accent: 0 0% 18%;
+    --sidebar-accent-foreground: 43 40% 90%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-ring: 21 100% 56%;
   }
 
   .dark {
-    --background: 200 25% 7%;
-    --foreground: 200 10% 92%;
+    --background: 0 0% 9%;
+    --foreground: 43 40% 90%;
 
-    --card: 200 20% 10%;
-    --card-foreground: 200 10% 92%;
+    --card: 0 0% 12%;
+    --card-foreground: 43 40% 90%;
 
-    --popover: 200 20% 10%;
-    --popover-foreground: 200 10% 92%;
+    --popover: 0 0% 12%;
+    --popover-foreground: 43 40% 90%;
 
-    --primary: 174 62% 48%;
+    --primary: 21 100% 56%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 200 15% 16%;
-    --secondary-foreground: 200 10% 90%;
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 43 40% 90%;
 
-    --muted: 200 15% 16%;
-    --muted-foreground: 200 10% 55%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 30 10% 55%;
 
-    --accent: 200 15% 16%;
-    --accent-foreground: 174 62% 60%;
+    --accent: 0 0% 16%;
+    --accent-foreground: 21 100% 65%;
 
     --destructive: 0 62% 40%;
     --destructive-foreground: 0 0% 100%;
@@ -83,18 +87,18 @@
     --warning: 38 80% 55%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 200 15% 18%;
-    --input: 200 15% 18%;
-    --ring: 174 62% 48%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 21 100% 56%;
 
-    --sidebar-background: 200 25% 6%;
-    --sidebar-foreground: 200 10% 85%;
-    --sidebar-primary: 174 62% 48%;
+    --sidebar-background: 0 0% 7%;
+    --sidebar-foreground: 43 40% 85%;
+    --sidebar-primary: 21 100% 56%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 200 15% 12%;
-    --sidebar-accent-foreground: 200 10% 90%;
-    --sidebar-border: 200 15% 12%;
-    --sidebar-ring: 174 62% 48%;
+    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent-foreground: 43 40% 90%;
+    --sidebar-border: 0 0% 12%;
+    --sidebar-ring: 21 100% 56%;
   }
 }
 

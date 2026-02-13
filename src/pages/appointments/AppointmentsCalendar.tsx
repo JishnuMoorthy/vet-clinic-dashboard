@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, DragEvent } from "react";
 import {
   format,
   startOfMonth,
@@ -16,8 +16,6 @@ import {
   isSameMonth,
   isToday,
   parseISO,
-  getHours,
-  getMinutes,
   differenceInMinutes,
   startOfDay,
   setHours,
@@ -32,25 +30,22 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import React from "react";
 import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  CalendarDays,
   LayoutList,
   Clock,
-  MapPin,
   User,
   PawPrint,
   CheckCircle,
   XCircle,
-  Edit,
-  List,
+  GripVertical,
 } from "lucide-react";
 
 type CalendarViewMode = "day" | "week" | "month";
 
-// Vet color palette
 const VET_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
   "mock-vet-001": {
     bg: "bg-blue-100 dark:bg-blue-900/30",
@@ -77,7 +72,7 @@ function getVetColor(vetId: string) {
   return VET_COLORS[vetId] || DEFAULT_COLOR;
 }
 
-const HOUR_HEIGHT = 60; // px per hour
+const HOUR_HEIGHT = 60;
 const START_HOUR = 7;
 const END_HOUR = 20;
 const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => i + START_HOUR);
@@ -86,8 +81,24 @@ function parseAppointmentTime(apt: Appointment): { start: Date; end: Date } {
   const [h, m] = apt.time.split(":").map(Number);
   const date = parseISO(apt.date);
   const start = setMinutes(setHours(date, h), m);
-  const end = addHours(start, 0.5); // 30 min default
+  const end = addHours(start, 0.5);
   return { start, end };
+}
+
+// ============= Drag helpers =============
+
+function handleDragStart(e: DragEvent, aptId: string) {
+  e.dataTransfer.setData("text/plain", aptId);
+  e.dataTransfer.effectAllowed = "move";
+  if (e.currentTarget instanceof HTMLElement) {
+    e.currentTarget.style.opacity = "0.5";
+  }
+}
+
+function handleDragEnd(e: DragEvent) {
+  if (e.currentTarget instanceof HTMLElement) {
+    e.currentTarget.style.opacity = "1";
+  }
 }
 
 export default function AppointmentsCalendar() {
@@ -96,10 +107,11 @@ export default function AppointmentsCalendar() {
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [appointments, setAppointments] = useState<Appointment[]>([...mockAppointments]);
   const [showList, setShowList] = useState(false);
+  const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const timeGridRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to current time on mount
   useEffect(() => {
     if (timeGridRef.current && (viewMode === "week" || viewMode === "day")) {
       const now = new Date();
@@ -108,7 +120,20 @@ export default function AppointmentsCalendar() {
     }
   }, [viewMode]);
 
-  // Navigation
+  const reschedule = useCallback(
+    (aptId: string, newDate: string, newTime: string) => {
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === aptId ? { ...a, date: newDate, time: newTime } : a))
+      );
+      const apt = appointments.find((a) => a.id === aptId);
+      toast({
+        title: "Appointment rescheduled",
+        description: `${apt?.pet?.name || "Appointment"} moved to ${format(parseISO(newDate), "MMM d")} at ${newTime}`,
+      });
+    },
+    [appointments, toast]
+  );
+
   const goToday = () => setCurrentDate(new Date());
   const goPrev = () => {
     if (viewMode === "month") setCurrentDate(subMonths(currentDate, 1));
@@ -132,11 +157,9 @@ export default function AppointmentsCalendar() {
     return `${format(weekStart, "MMM d")} – ${format(weekEnd, "MMM d, yyyy")}`;
   }, [currentDate, viewMode]);
 
-  // Get appointments for a specific day
   const getAptsForDay = (day: Date) =>
-    mockAppointments.filter((a) => isSameDay(parseISO(a.date), day));
+    appointments.filter((a) => isSameDay(parseISO(a.date), day));
 
-  // Vet legend
   const vets = mockUsers.filter((u) => u.role === "vet");
 
   return (
@@ -157,7 +180,6 @@ export default function AppointmentsCalendar() {
         <h2 className="text-base font-semibold min-w-[180px]">{headerLabel}</h2>
         <div className="flex-1" />
 
-        {/* Vet legend */}
         <div className="hidden md:flex items-center gap-3 mr-2">
           {vets.map((v) => {
             const color = getVetColor(v.id);
@@ -170,7 +192,6 @@ export default function AppointmentsCalendar() {
           })}
         </div>
 
-        {/* View switchers */}
         <div className="flex rounded-md border bg-muted/50 p-0.5">
           {(["day", "week", "month"] as CalendarViewMode[]).map((mode) => (
             <Button
@@ -211,20 +232,19 @@ export default function AppointmentsCalendar() {
               onSelect={(d) => d && setCurrentDate(d)}
               className="p-1 pointer-events-auto"
               modifiers={{
-                hasAppointment: mockAppointments.map((a) => parseISO(a.date)),
+                hasAppointment: appointments.map((a) => parseISO(a.date)),
               }}
               modifiersClassNames={{
                 hasAppointment: "font-bold text-primary",
               }}
             />
           </div>
-          {/* Upcoming list in sidebar */}
           <div className="flex-1 overflow-y-auto border-t p-3">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Upcoming
             </h3>
             <div className="space-y-2">
-              {mockAppointments
+              {appointments
                 .filter((a) => a.status === "scheduled")
                 .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
                 .slice(0, 8)
@@ -264,6 +284,9 @@ export default function AppointmentsCalendar() {
                 setCurrentDate(d);
                 setViewMode("day");
               }}
+              onReschedule={reschedule}
+              dragOverSlot={dragOverSlot}
+              setDragOverSlot={setDragOverSlot}
             />
           )}
           {viewMode === "week" && (
@@ -276,6 +299,9 @@ export default function AppointmentsCalendar() {
                 setCurrentDate(d);
                 navigate("/appointments/new");
               }}
+              onReschedule={reschedule}
+              dragOverSlot={dragOverSlot}
+              setDragOverSlot={setDragOverSlot}
             />
           )}
           {viewMode === "day" && (
@@ -285,6 +311,9 @@ export default function AppointmentsCalendar() {
               appointments={getAptsForDay(currentDate)}
               onSelectAppointment={setSelectedAppointment}
               onTimeClick={() => navigate("/appointments/new")}
+              onReschedule={reschedule}
+              dragOverSlot={dragOverSlot}
+              setDragOverSlot={setDragOverSlot}
             />
           )}
         </div>
@@ -298,17 +327,55 @@ export default function AppointmentsCalendar() {
               apt={selectedAppointment}
               onClose={() => setSelectedAppointment(null)}
               onComplete={() => {
-                toast({ title: `${selectedAppointment.pet?.name} appointment completed (mock)` });
+                setAppointments((prev) =>
+                  prev.map((a) => (a.id === selectedAppointment.id ? { ...a, status: "completed" } : a))
+                );
+                toast({ title: `${selectedAppointment.pet?.name} appointment completed` });
                 setSelectedAppointment(null);
               }}
               onCancel={() => {
-                toast({ title: "Appointment cancelled (mock)" });
+                setAppointments((prev) =>
+                  prev.map((a) => (a.id === selectedAppointment.id ? { ...a, status: "cancelled" } : a))
+                );
+                toast({ title: "Appointment cancelled" });
                 setSelectedAppointment(null);
               }}
             />
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ============= Draggable Appointment Block =============
+
+function DraggableAppointment({
+  apt,
+  className,
+  style,
+  onClick,
+  children,
+}: {
+  apt: Appointment;
+  className?: string;
+  style?: React.CSSProperties;
+  onClick?: (e: React.MouseEvent) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      draggable={apt.status === "scheduled"}
+      onDragStart={(e) => handleDragStart(e, apt.id)}
+      onDragEnd={handleDragEnd}
+      className={cn(className, apt.status === "scheduled" && "cursor-grab active:cursor-grabbing")}
+      style={style}
+      onClick={onClick}
+    >
+      {apt.status === "scheduled" && (
+        <GripVertical className="absolute top-0.5 right-0.5 h-3 w-3 opacity-30" />
+      )}
+      {children}
     </div>
   );
 }
@@ -320,11 +387,17 @@ function MonthGrid({
   getAptsForDay,
   onSelectAppointment,
   onDateClick,
+  onReschedule,
+  dragOverSlot,
+  setDragOverSlot,
 }: {
   currentDate: Date;
   getAptsForDay: (d: Date) => Appointment[];
   onSelectAppointment: (a: Appointment) => void;
   onDateClick: (d: Date) => void;
+  onReschedule: (aptId: string, newDate: string, newTime: string) => void;
+  dragOverSlot: string | null;
+  setDragOverSlot: (s: string | null) => void;
 }) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -346,7 +419,6 @@ function MonthGrid({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Day headers */}
       <div className="grid grid-cols-7 border-b">
         {dayHeaders.map((d) => (
           <div key={d} className="px-2 py-1.5 text-xs font-medium text-muted-foreground text-center">
@@ -354,27 +426,41 @@ function MonthGrid({
           </div>
         ))}
       </div>
-      {/* Weeks */}
       <div className="flex-1 grid" style={{ gridTemplateRows: `repeat(${weeks.length}, 1fr)` }}>
         {weeks.map((week, wi) => (
           <div key={wi} className="grid grid-cols-7 border-b last:border-b-0">
             {week.map((d) => {
               const apts = getAptsForDay(d);
               const inMonth = isSameMonth(d, currentDate);
-              const today = isToday(d);
+              const todayCheck = isToday(d);
+              const dateKey = format(d, "yyyy-MM-dd");
+              const isOver = dragOverSlot === `month-${dateKey}`;
               return (
                 <div
                   key={d.toISOString()}
                   className={cn(
                     "border-r last:border-r-0 p-1 min-h-[80px] cursor-pointer hover:bg-muted/30 transition-colors overflow-hidden",
-                    !inMonth && "bg-muted/20"
+                    !inMonth && "bg-muted/20",
+                    isOver && "bg-primary/10 ring-2 ring-primary/30 ring-inset"
                   )}
                   onClick={() => onDateClick(d)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOverSlot(`month-${dateKey}`);
+                  }}
+                  onDragLeave={() => setDragOverSlot(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverSlot(null);
+                    const aptId = e.dataTransfer.getData("text/plain");
+                    if (aptId) onReschedule(aptId, dateKey, "09:00");
+                  }}
                 >
                   <div
                     className={cn(
                       "text-xs font-medium mb-0.5 w-6 h-6 flex items-center justify-center rounded-full mx-auto",
-                      today && "bg-primary text-primary-foreground",
+                      todayCheck && "bg-primary text-primary-foreground",
                       !inMonth && "text-muted-foreground/50"
                     )}
                   >
@@ -384,10 +470,11 @@ function MonthGrid({
                     {apts.slice(0, 3).map((apt) => {
                       const color = getVetColor(apt.vet_id);
                       return (
-                        <button
+                        <DraggableAppointment
                           key={apt.id}
+                          apt={apt}
                           className={cn(
-                            "w-full rounded px-1 py-0.5 text-[10px] leading-tight truncate text-left border-l-2",
+                            "relative w-full rounded px-1 py-0.5 text-[10px] leading-tight truncate text-left border-l-2",
                             color.bg,
                             color.border,
                             color.text,
@@ -398,8 +485,8 @@ function MonthGrid({
                             onSelectAppointment(apt);
                           }}
                         >
-                          {apt.time} {apt.pet?.name}
-                        </button>
+                          <span className="truncate">{apt.time} {apt.pet?.name}</span>
+                        </DraggableAppointment>
                       );
                     })}
                     {apts.length > 3 && (
@@ -420,8 +507,6 @@ function MonthGrid({
 
 // ============= Week Grid =============
 
-import React from "react";
-
 const WeekGrid = React.forwardRef<
   HTMLDivElement,
   {
@@ -429,14 +514,26 @@ const WeekGrid = React.forwardRef<
     getAptsForDay: (d: Date) => Appointment[];
     onSelectAppointment: (a: Appointment) => void;
     onTimeClick: (d: Date) => void;
+    onReschedule: (aptId: string, newDate: string, newTime: string) => void;
+    dragOverSlot: string | null;
+    setDragOverSlot: (s: string | null) => void;
   }
->(({ currentDate, getAptsForDay, onSelectAppointment, onTimeClick }, ref) => {
+>(({ currentDate, getAptsForDay, onSelectAppointment, onTimeClick, onReschedule, dragOverSlot, setDragOverSlot }, ref) => {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
+  const handleSlotDrop = (e: DragEvent<HTMLDivElement>, day: Date, hour: number, half: boolean) => {
+    e.preventDefault();
+    setDragOverSlot(null);
+    const aptId = e.dataTransfer.getData("text/plain");
+    if (!aptId) return;
+    const minutes = half ? 30 : 0;
+    const newTime = `${String(hour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+    onReschedule(aptId, format(day, "yyyy-MM-dd"), newTime);
+  };
+
   return (
     <div className="flex flex-col h-full">
-      {/* Day headers */}
       <div className="grid border-b" style={{ gridTemplateColumns: "60px repeat(7, 1fr)" }}>
         <div className="border-r" />
         {days.map((d) => (
@@ -460,7 +557,6 @@ const WeekGrid = React.forwardRef<
         ))}
       </div>
 
-      {/* Time grid */}
       <div ref={ref} className="flex-1 overflow-y-auto relative">
         <div
           className="grid relative"
@@ -469,7 +565,6 @@ const WeekGrid = React.forwardRef<
             height: `${(END_HOUR - START_HOUR) * HOUR_HEIGHT}px`,
           }}
         >
-          {/* Time labels */}
           <div className="border-r relative">
             {HOURS.map((hour) => (
               <div
@@ -482,44 +577,70 @@ const WeekGrid = React.forwardRef<
             ))}
           </div>
 
-          {/* Day columns */}
-          {days.map((d, di) => {
+          {days.map((d) => {
             const apts = getAptsForDay(d);
+            const dateKey = format(d, "yyyy-MM-dd");
             return (
               <div key={d.toISOString()} className="relative border-r last:border-r-0">
-                {/* Hour lines */}
-                {HOURS.map((hour) => (
-                  <div
-                    key={hour}
-                    className="absolute w-full border-t border-border/50 cursor-pointer hover:bg-muted/20"
-                    style={{
-                      top: `${(hour - START_HOUR) * HOUR_HEIGHT}px`,
-                      height: `${HOUR_HEIGHT}px`,
-                    }}
-                    onClick={() => onTimeClick(setHours(d, hour))}
-                  />
-                ))}
-                {/* Half-hour lines */}
-                {HOURS.map((hour) => (
-                  <div
-                    key={`${hour}-half`}
-                    className="absolute w-full border-t border-border/20"
-                    style={{ top: `${(hour - START_HOUR) * HOUR_HEIGHT + HOUR_HEIGHT / 2}px` }}
-                  />
-                ))}
+                {/* Drop zones — top half and bottom half of each hour */}
+                {HOURS.map((hour) => {
+                  const slotKeyTop = `week-${dateKey}-${hour}-0`;
+                  const slotKeyBot = `week-${dateKey}-${hour}-30`;
+                  return (
+                    <React.Fragment key={hour}>
+                      <div
+                        className={cn(
+                          "absolute w-full border-t border-border/50 cursor-pointer hover:bg-muted/20 transition-colors",
+                          dragOverSlot === slotKeyTop && "bg-primary/10"
+                        )}
+                        style={{
+                          top: `${(hour - START_HOUR) * HOUR_HEIGHT}px`,
+                          height: `${HOUR_HEIGHT / 2}px`,
+                        }}
+                        onClick={() => onTimeClick(setHours(d, hour))}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          setDragOverSlot(slotKeyTop);
+                        }}
+                        onDragLeave={() => setDragOverSlot(null)}
+                        onDrop={(e) => handleSlotDrop(e as any, d, hour, false)}
+                      />
+                      <div
+                        className={cn(
+                          "absolute w-full border-t border-border/20 cursor-pointer hover:bg-muted/20 transition-colors",
+                          dragOverSlot === slotKeyBot && "bg-primary/10"
+                        )}
+                        style={{
+                          top: `${(hour - START_HOUR) * HOUR_HEIGHT + HOUR_HEIGHT / 2}px`,
+                          height: `${HOUR_HEIGHT / 2}px`,
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          setDragOverSlot(slotKeyBot);
+                        }}
+                        onDragLeave={() => setDragOverSlot(null)}
+                        onDrop={(e) => handleSlotDrop(e as any, d, hour, true)}
+                      />
+                    </React.Fragment>
+                  );
+                })}
+
                 {/* Appointments */}
                 {apts.map((apt) => {
                   const { start } = parseAppointmentTime(apt);
                   const topMinutes = differenceInMinutes(start, setHours(setMinutes(startOfDay(d), 0), START_HOUR));
                   const top = (topMinutes / 60) * HOUR_HEIGHT;
-                  const height = (30 / 60) * HOUR_HEIGHT; // 30 min
+                  const height = (30 / 60) * HOUR_HEIGHT;
                   const color = getVetColor(apt.vet_id);
                   if (top < 0 || top > (END_HOUR - START_HOUR) * HOUR_HEIGHT) return null;
                   return (
-                    <button
+                    <DraggableAppointment
                       key={apt.id}
+                      apt={apt}
                       className={cn(
-                        "absolute left-0.5 right-0.5 rounded border-l-3 px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden cursor-pointer hover:shadow-md transition-shadow z-10",
+                        "absolute left-0.5 right-0.5 rounded border-l-3 px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden hover:shadow-md transition-shadow z-10",
                         color.bg,
                         color.border,
                         color.text,
@@ -533,10 +654,9 @@ const WeekGrid = React.forwardRef<
                     >
                       <p className="font-medium truncate">{apt.pet?.name}</p>
                       <p className="truncate opacity-75">{apt.reason}</p>
-                    </button>
+                    </DraggableAppointment>
                   );
                 })}
-                {/* Current time indicator */}
                 {isToday(d) && <CurrentTimeIndicator />}
               </div>
             );
@@ -557,8 +677,23 @@ const DayGrid = React.forwardRef<
     appointments: Appointment[];
     onSelectAppointment: (a: Appointment) => void;
     onTimeClick: () => void;
+    onReschedule: (aptId: string, newDate: string, newTime: string) => void;
+    dragOverSlot: string | null;
+    setDragOverSlot: (s: string | null) => void;
   }
->(({ currentDate, appointments, onSelectAppointment, onTimeClick }, ref) => {
+>(({ currentDate, appointments, onSelectAppointment, onTimeClick, onReschedule, dragOverSlot, setDragOverSlot }, ref) => {
+  const dateKey = format(currentDate, "yyyy-MM-dd");
+
+  const handleSlotDrop = (e: DragEvent<HTMLDivElement>, hour: number, half: boolean) => {
+    e.preventDefault();
+    setDragOverSlot(null);
+    const aptId = e.dataTransfer.getData("text/plain");
+    if (!aptId) return;
+    const minutes = half ? 30 : 0;
+    const newTime = `${String(hour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+    onReschedule(aptId, dateKey, newTime);
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div ref={ref} className="flex-1 overflow-y-auto relative">
@@ -569,7 +704,6 @@ const DayGrid = React.forwardRef<
             height: `${(END_HOUR - START_HOUR) * HOUR_HEIGHT}px`,
           }}
         >
-          {/* Time labels */}
           <div className="border-r relative">
             {HOURS.map((hour) => (
               <div
@@ -582,28 +716,51 @@ const DayGrid = React.forwardRef<
             ))}
           </div>
 
-          {/* Day column */}
           <div className="relative">
-            {HOURS.map((hour) => (
-              <div
-                key={hour}
-                className="absolute w-full border-t border-border/50 cursor-pointer hover:bg-muted/20"
-                style={{
-                  top: `${(hour - START_HOUR) * HOUR_HEIGHT}px`,
-                  height: `${HOUR_HEIGHT}px`,
-                }}
-                onClick={onTimeClick}
-              />
-            ))}
-            {HOURS.map((hour) => (
-              <div
-                key={`${hour}-half`}
-                className="absolute w-full border-t border-border/20"
-                style={{ top: `${(hour - START_HOUR) * HOUR_HEIGHT + HOUR_HEIGHT / 2}px` }}
-              />
-            ))}
+            {HOURS.map((hour) => {
+              const slotKeyTop = `day-${dateKey}-${hour}-0`;
+              const slotKeyBot = `day-${dateKey}-${hour}-30`;
+              return (
+                <React.Fragment key={hour}>
+                  <div
+                    className={cn(
+                      "absolute w-full border-t border-border/50 cursor-pointer hover:bg-muted/20 transition-colors",
+                      dragOverSlot === slotKeyTop && "bg-primary/10"
+                    )}
+                    style={{
+                      top: `${(hour - START_HOUR) * HOUR_HEIGHT}px`,
+                      height: `${HOUR_HEIGHT / 2}px`,
+                    }}
+                    onClick={onTimeClick}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      setDragOverSlot(slotKeyTop);
+                    }}
+                    onDragLeave={() => setDragOverSlot(null)}
+                    onDrop={(e) => handleSlotDrop(e as any, hour, false)}
+                  />
+                  <div
+                    className={cn(
+                      "absolute w-full border-t border-border/20 cursor-pointer hover:bg-muted/20 transition-colors",
+                      dragOverSlot === slotKeyBot && "bg-primary/10"
+                    )}
+                    style={{
+                      top: `${(hour - START_HOUR) * HOUR_HEIGHT + HOUR_HEIGHT / 2}px`,
+                      height: `${HOUR_HEIGHT / 2}px`,
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      setDragOverSlot(slotKeyBot);
+                    }}
+                    onDragLeave={() => setDragOverSlot(null)}
+                    onDrop={(e) => handleSlotDrop(e as any, hour, true)}
+                  />
+                </React.Fragment>
+              );
+            })}
 
-            {/* Appointments — support side-by-side overlapping */}
             {appointments.map((apt) => {
               const { start } = parseAppointmentTime(apt);
               const topMinutes = differenceInMinutes(start, setHours(setMinutes(startOfDay(currentDate), 0), START_HOUR));
@@ -612,10 +769,11 @@ const DayGrid = React.forwardRef<
               const color = getVetColor(apt.vet_id);
               if (top < 0 || top > (END_HOUR - START_HOUR) * HOUR_HEIGHT) return null;
               return (
-                <button
+                <DraggableAppointment
                   key={apt.id}
+                  apt={apt}
                   className={cn(
-                    "absolute rounded border-l-3 px-2 py-1 text-xs leading-tight overflow-hidden cursor-pointer hover:shadow-md transition-shadow z-10",
+                    "absolute rounded border-l-3 px-2 py-1 text-xs leading-tight overflow-hidden hover:shadow-md transition-shadow z-10",
                     color.bg,
                     color.border,
                     color.text,
@@ -639,7 +797,7 @@ const DayGrid = React.forwardRef<
                     <p className="opacity-75 truncate">— {apt.reason}</p>
                   </div>
                   <p className="opacity-60 truncate">{apt.vet?.full_name}</p>
-                </button>
+                </DraggableAppointment>
               );
             })}
             {isToday(currentDate) && <CurrentTimeIndicator />}
@@ -735,7 +893,7 @@ function AppointmentDetail({
         {apt.status === "scheduled" && (
           <div className="flex flex-wrap gap-2 border-t pt-3">
             <Button size="sm" variant="outline" onClick={onComplete}>
-              <CheckCircle className="mr-1.5 h-3 w-3 text-success" /> Complete
+              <CheckCircle className="mr-1.5 h-3 w-3 text-green-500" /> Complete
             </Button>
             <Button size="sm" variant="outline" className="text-destructive" onClick={onCancel}>
               <XCircle className="mr-1.5 h-3 w-3" /> Cancel

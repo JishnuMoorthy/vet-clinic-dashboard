@@ -14,6 +14,7 @@ import PetForm from "@/pages/pets/PetForm";
 import OwnersList from "@/pages/owners/OwnersList";
 import OwnerDetail from "@/pages/owners/OwnerDetail";
 import OwnerForm from "@/pages/owners/OwnerForm";
+import AppointmentsCalendar from "@/pages/appointments/AppointmentsCalendar";
 import AppointmentsList from "@/pages/appointments/AppointmentsList";
 import AppointmentForm from "@/pages/appointments/AppointmentForm";
 import InvoicesList from "@/pages/billing/InvoicesList";
@@ -56,7 +57,8 @@ const App = () => (
               <Route path="/owners/:id" element={<OwnerDetail />} />
               <Route path="/owners/:id/edit" element={<OwnerForm />} />
               {/* Appointments */}
-              <Route path="/appointments" element={<AppointmentsList />} />
+              <Route path="/appointments" element={<AppointmentsCalendar />} />
+              <Route path="/appointments/list" element={<AppointmentsList />} />
               <Route path="/appointments/new" element={<AppointmentForm />} />
               {/* Billing (admin) */}
               <Route path="/billing" element={<ProtectedRoute allowedRoles={["admin"]}><InvoicesList /></ProtectedRoute>} />

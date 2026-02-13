@@ -26,16 +26,16 @@ import {
 } from "@/components/ui/sidebar";
 
 const mainNav = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Pets", url: "/pets", icon: PawPrint },
-  { title: "Owners", url: "/owners", icon: Users },
-  { title: "Appointments", url: "/appointments", icon: CalendarDays },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, hint: "Overview & quick actions" },
+  { title: "Pets", url: "/pets", icon: PawPrint, hint: "Manage pet records" },
+  { title: "Owners", url: "/owners", icon: Users, hint: "Pet parent directory" },
+  { title: "Appointments", url: "/appointments", icon: CalendarDays, hint: "Calendar & scheduling" },
 ];
 
 const adminNav = [
-  { title: "Billing", url: "/billing", icon: Receipt },
-  { title: "Inventory", url: "/inventory", icon: Package },
-  { title: "Staff", url: "/staff", icon: UserCog },
+  { title: "Billing", url: "/billing", icon: Receipt, hint: "Invoices & payments" },
+  { title: "Inventory", url: "/inventory", icon: Package, hint: "Stock management" },
+  { title: "Staff", url: "/staff", icon: UserCog, hint: "Team & roles" },
 ];
 
 export function AppSidebar() {
@@ -57,7 +57,7 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Main</SidebarGroupLabel>
+          <SidebarGroupLabel>Clinic</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNav.map((item) => (
@@ -69,7 +69,10 @@ export function AppSidebar() {
                       activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                     >
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <div className="flex flex-col">
+                        <span className="text-sm">{item.title}</span>
+                        <span className="text-[10px] opacity-50 leading-tight">{item.hint}</span>
+                      </div>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -92,7 +95,10 @@ export function AppSidebar() {
                         activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                       >
                         <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
+                        <div className="flex flex-col">
+                          <span className="text-sm">{item.title}</span>
+                          <span className="text-[10px] opacity-50 leading-tight">{item.hint}</span>
+                        </div>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -126,13 +132,18 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-4">
         <div className="flex items-center justify-between">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-sidebar-foreground">
-              {user?.full_name}
-            </p>
-            <p className="truncate text-xs text-sidebar-foreground/60">
-              {user?.role}
-            </p>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-7 w-7 rounded-full bg-sidebar-primary/20 flex items-center justify-center text-xs font-semibold text-sidebar-primary shrink-0">
+              {user?.full_name?.charAt(0) || "U"}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-sidebar-foreground">
+                {user?.full_name}
+              </p>
+              <p className="truncate text-xs text-sidebar-foreground/60 capitalize">
+                {user?.role}
+              </p>
+            </div>
           </div>
           <button
             onClick={logout}

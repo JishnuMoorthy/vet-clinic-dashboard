@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, CheckCircle2 } from "lucide-react";
 
 interface LineItem {
   description: string;
@@ -24,6 +24,7 @@ export default function InvoiceForm() {
   const [discount, setDiscount] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [items, setItems] = useState<LineItem[]>([{ description: "", quantity: 1, unit_price: 0 }]);
+  const [submitted, setSubmitted] = useState(false);
 
   const selectedPet = mockPets.find((p) => p.id === petId);
 
@@ -37,39 +38,56 @@ export default function InvoiceForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitted(true);
     if (!petId || !dueDate || items.some((li) => !li.description || li.unit_price <= 0)) {
-      toast({ title: "Please fill all required fields", variant: "destructive" });
+      toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
-    toast({ title: "Invoice created (mock)" });
+    toast({
+      title: "Invoice created!",
+      description: `₹${Math.max(0, total).toLocaleString()} billed to ${selectedPet?.owner?.full_name}`,
+    });
     navigate("/billing");
   };
 
   return (
     <div className="space-y-6">
-      <PageHeader title="New Invoice" backTo="/billing" />
-      <Card>
+      <PageHeader
+        title="New Invoice"
+        subtitle="Create a bill for services rendered"
+        backTo="/billing"
+        helpText="Select a pet first — the owner fills in automatically. Add line items for each service."
+      />
+      <Card className="max-w-3xl">
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-2">
-                <Label>Pet *</Label>
+              <div className="space-y-1.5">
+                <Label className={submitted && !petId ? "text-destructive" : ""}>Pet *</Label>
                 <Select value={petId} onValueChange={setPetId}>
-                  <SelectTrigger><SelectValue placeholder="Select pet" /></SelectTrigger>
+                  <SelectTrigger className={submitted && !petId ? "border-destructive" : ""}><SelectValue placeholder="Select pet" /></SelectTrigger>
                   <SelectContent>
                     {mockPets.map((p) => (
                       <SelectItem key={p.id} value={p.id}>{p.name} ({p.owner?.full_name})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {submitted && !petId && <p className="text-xs text-destructive">Please select a pet</p>}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label>Owner</Label>
                 <Input value={selectedPet?.owner?.full_name || "—"} disabled />
+                <p className="text-[11px] text-muted-foreground">Auto-filled from pet</p>
               </div>
-              <div className="space-y-2">
-                <Label>Due Date *</Label>
-                <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              <div className="space-y-1.5">
+                <Label className={submitted && !dueDate ? "text-destructive" : ""}>Due Date *</Label>
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className={submitted && !dueDate ? "border-destructive" : ""}
+                />
+                {submitted && !dueDate && <p className="text-xs text-destructive">Please set a due date</p>}
               </div>
             </div>
 
@@ -83,8 +101,13 @@ export default function InvoiceForm() {
               {items.map((li, i) => (
                 <div key={i} className="grid grid-cols-[1fr_80px_100px_40px] gap-2 items-end">
                   <div>
-                    {i === 0 && <Label className="text-xs text-muted-foreground">Description</Label>}
-                    <Input value={li.description} onChange={(e) => updateItem(i, "description", e.target.value)} placeholder="Service or item" />
+                    {i === 0 && <Label className="text-xs text-muted-foreground">Service / Item</Label>}
+                    <Input
+                      value={li.description}
+                      onChange={(e) => updateItem(i, "description", e.target.value)}
+                      placeholder="e.g., Consultation fee"
+                      className={submitted && !li.description ? "border-destructive" : ""}
+                    />
                   </div>
                   <div>
                     {i === 0 && <Label className="text-xs text-muted-foreground">Qty</Label>}
@@ -101,17 +124,20 @@ export default function InvoiceForm() {
               ))}
             </div>
 
-            <div className="flex flex-col items-end space-y-1 text-sm">
-              <p>Subtotal: ₹{subtotal.toLocaleString()}</p>
+            <div className="flex flex-col items-end space-y-1 text-sm border-t pt-4">
+              <p>Subtotal: <span className="font-medium">₹{subtotal.toLocaleString()}</span></p>
               <div className="flex items-center gap-2">
                 <Label className="text-sm">Discount (₹):</Label>
                 <Input type="number" min="0" className="w-24" value={discount} onChange={(e) => setDiscount(e.target.value)} />
               </div>
-              <p className="text-lg font-bold">Total: ₹{Math.max(0, total).toLocaleString()}</p>
+              <p className="text-lg font-bold text-primary">Total: ₹{Math.max(0, total).toLocaleString()}</p>
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit">Create Invoice</Button>
+              <Button type="submit">
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Create Invoice
+              </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/billing")}>Cancel</Button>
             </div>
           </form>

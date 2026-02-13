@@ -128,7 +128,7 @@ export function AppSidebar() {
         <div className="flex items-center justify-between">
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-sidebar-foreground">
-              {user?.name}
+              {user?.full_name}
             </p>
             <p className="truncate text-xs text-sidebar-foreground/60">
               {user?.role}

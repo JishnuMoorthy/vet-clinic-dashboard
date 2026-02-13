@@ -2,21 +2,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, Receipt, PawPrint, Users, AlertTriangle, Clock } from "lucide-react";
 import { mockDashboardData } from "@/lib/mock-data";
+import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
-
-function getStockStatus(item: { quantity: number; low_stock_threshold: number }) {
-  if (item.quantity === 0) return "out";
-  if (item.quantity <= item.low_stock_threshold) return "low";
-  return "ok";
-}
 
 const statusColors: Record<string, string> = {
   scheduled: "bg-primary/10 text-primary border-primary/20",
   completed: "bg-green-100 text-green-700 border-green-200",
   cancelled: "bg-destructive/10 text-destructive border-destructive/20",
   paid: "bg-green-100 text-green-700 border-green-200",
-  issued: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  draft: "bg-muted text-muted-foreground border-border",
+  pending: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  overdue: "bg-destructive/10 text-destructive border-destructive/20",
   low: "bg-yellow-100 text-yellow-700 border-yellow-200",
   out: "bg-destructive/10 text-destructive border-destructive/20",
 };
@@ -36,6 +31,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
+      {/* Stat Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.title} className="cursor-pointer transition-shadow hover:shadow-md" onClick={stat.onClick}>
@@ -51,6 +47,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Upcoming Appointments */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -69,10 +66,10 @@ export default function Dashboard() {
                 >
                   <div className="min-w-0">
                     <p className="font-medium truncate">{appt.pet?.name}</p>
-                    <p className="text-xs text-muted-foreground">{appt.reason} • {appt.vet?.name}</p>
+                    <p className="text-xs text-muted-foreground">{appt.reason} • {appt.vet?.full_name}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-mono text-muted-foreground">{appt.start_time}</span>
+                    <span className="text-sm font-mono text-muted-foreground">{appt.time}</span>
                     <Badge variant="outline" className={statusColors[appt.status]}>{appt.status}</Badge>
                   </div>
                 </div>
@@ -81,6 +78,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        {/* Recent Invoices */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -96,10 +94,10 @@ export default function Dashboard() {
               >
                 <div className="min-w-0">
                   <p className="font-medium">{inv.invoice_number}</p>
-                  <p className="text-xs text-muted-foreground">{inv.pet?.name} • {inv.owner?.name}</p>
+                  <p className="text-xs text-muted-foreground">{inv.pet?.name} • {inv.owner?.full_name}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">₹{inv.total_amount.toLocaleString()}</span>
+                  <span className="font-medium">₹{inv.total.toLocaleString()}</span>
                   <Badge variant="outline" className={statusColors[inv.status]}>{inv.status}</Badge>
                 </div>
               </div>
@@ -108,6 +106,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Low Stock Alerts */}
       {data.low_stock_items.length > 0 && (
         <Card className="border-yellow-200 bg-yellow-50/50">
           <CardHeader>
@@ -117,20 +116,17 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {data.low_stock_items.map((item) => {
-                const stockStatus = getStockStatus(item);
-                return (
-                  <div key={item.id} className="flex items-center justify-between rounded-lg border border-yellow-200 bg-background p-3">
-                    <div>
-                      <p className="font-medium text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.category}</p>
-                    </div>
-                    <Badge variant="outline" className={statusColors[stockStatus]}>
-                      {stockStatus === "out" ? "Out of stock" : `${item.quantity} left`}
-                    </Badge>
+              {data.low_stock_items.map((item) => (
+                <div key={item.id} className="flex items-center justify-between rounded-lg border border-yellow-200 bg-background p-3">
+                  <div>
+                    <p className="font-medium text-sm">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">{item.category}</p>
                   </div>
-                );
-              })}
+                  <Badge variant="outline" className={statusColors[item.status]}>
+                    {item.status === "out" ? "Out of stock" : `${item.quantity} left`}
+                  </Badge>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

@@ -14,7 +14,7 @@ export function AppLayout() {
           <SidebarTrigger />
           <div className="flex-1" />
           <span className="text-sm text-muted-foreground">
-            {user?.name}
+            {user?.full_name}
           </span>
         </header>
         <main className="flex-1 p-4 md:p-6">

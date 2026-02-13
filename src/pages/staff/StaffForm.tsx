@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
-import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
+
 import { CheckCircle2, X } from "lucide-react";
 
 const SPECIALTY_OPTIONS = [
@@ -43,7 +43,7 @@ export default function StaffForm() {
     form.email !== (existing?.email || "") ||
     form.phone !== (existing?.phone || "") ||
     form.role !== (existing?.role || "staff");
-  const blocker = useUnsavedChanges(isDirty && !submitted);
+  useUnsavedChanges(isDirty && !submitted);
 
   const errors: Record<string, string> = {};
   if (!form.full_name && touched.full_name) errors.full_name = "Please enter the team member's name";
@@ -160,7 +160,7 @@ export default function StaffForm() {
           </form>
         </CardContent>
       </Card>
-      <UnsavedChangesDialog blocker={blocker} />
+      
     </div>
   );
 }

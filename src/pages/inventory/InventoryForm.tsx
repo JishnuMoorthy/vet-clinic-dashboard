@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { CheckCircle2 } from "lucide-react";
 
 const categories = ["Vaccines", "Medications", "Consumables", "Equipment"];
 
@@ -28,29 +29,52 @@ export default function InventoryForm() {
     expiry_date: existing?.expiry_date || "",
   });
 
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const errors: Record<string, string> = {};
+  if (!form.name && touched.name) errors.name = "Please enter the item name";
+  if (!form.quantity && touched.quantity) errors.quantity = "Enter current stock count";
+  if (!form.reorder_level && touched.reorder_level) errors.reorder_level = "Set minimum stock level for alerts";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.quantity || !form.reorder_level) {
-      toast({ title: "Please fill required fields", variant: "destructive" });
+      setTouched({ name: true, quantity: true, reorder_level: true });
+      toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
-    toast({ title: isEdit ? `${form.name} updated (mock)` : `${form.name} added (mock)` });
+    toast({
+      title: isEdit ? `${form.name} updated` : `${form.name} added to inventory`,
+      description: isEdit ? "Stock record saved." : "Item is now tracked in your inventory.",
+    });
     navigate("/inventory");
   };
 
   return (
     <div className="space-y-6">
-      <PageHeader title={isEdit ? `Edit ${existing?.name}` : "Add Inventory Item"} backTo="/inventory" />
-      <Card>
+      <PageHeader
+        title={isEdit ? `Edit ${existing?.name}` : "Add Inventory Item"}
+        subtitle={isEdit ? "Update stock details" : "Track a new item in your clinic's inventory"}
+        backTo="/inventory"
+        helpText="Set reorder level to get alerts when stock runs low."
+      />
+      <Card className="max-w-2xl">
         <CardContent className="pt-6">
-          <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Name *</Label>
-              <Input value={form.name} onChange={(e) => update("name", e.target.value)} />
+          <form onSubmit={handleSubmit} className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className={errors.name ? "text-destructive" : ""}>Item Name *</Label>
+              <Input
+                value={form.name}
+                onChange={(e) => update("name", e.target.value)}
+                onBlur={() => markTouched("name")}
+                placeholder="e.g., Rabies Vaccine"
+                className={errors.name ? "border-destructive" : ""}
+              />
+              {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>Category *</Label>
               <Select value={form.category} onValueChange={(v) => update("category", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -59,28 +83,51 @@ export default function InventoryForm() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Quantity *</Label>
-              <Input type="number" min="0" value={form.quantity} onChange={(e) => update("quantity", e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className={errors.quantity ? "text-destructive" : ""}>Current Quantity *</Label>
+              <Input
+                type="number" min="0"
+                value={form.quantity}
+                onChange={(e) => update("quantity", e.target.value)}
+                onBlur={() => markTouched("quantity")}
+                placeholder="e.g., 45"
+                className={errors.quantity ? "border-destructive" : ""}
+              />
+              {errors.quantity && <p className="text-xs text-destructive">{errors.quantity}</p>}
             </div>
-            <div className="space-y-2">
-              <Label>Reorder Level *</Label>
-              <Input type="number" min="0" value={form.reorder_level} onChange={(e) => update("reorder_level", e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className={errors.reorder_level ? "text-destructive" : ""}>Reorder Level *</Label>
+              <Input
+                type="number" min="0"
+                value={form.reorder_level}
+                onChange={(e) => update("reorder_level", e.target.value)}
+                onBlur={() => markTouched("reorder_level")}
+                placeholder="e.g., 20"
+                className={errors.reorder_level ? "border-destructive" : ""}
+              />
+              {errors.reorder_level ? (
+                <p className="text-xs text-destructive">{errors.reorder_level}</p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">You'll get an alert when stock falls below this</p>
+              )}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>Unit Price (₹)</Label>
-              <Input type="number" min="0" value={form.unit_price} onChange={(e) => update("unit_price", e.target.value)} />
+              <Input type="number" min="0" value={form.unit_price} onChange={(e) => update("unit_price", e.target.value)} placeholder="e.g., 800" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>Supplier</Label>
-              <Input value={form.supplier} onChange={(e) => update("supplier", e.target.value)} />
+              <Input value={form.supplier} onChange={(e) => update("supplier", e.target.value)} placeholder="e.g., VetPharma India" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>Expiry Date</Label>
               <Input type="date" value={form.expiry_date} onChange={(e) => update("expiry_date", e.target.value)} />
             </div>
-            <div className="flex gap-2 sm:col-span-2">
-              <Button type="submit">{isEdit ? "Save Changes" : "Add Item"}</Button>
+            <div className="flex gap-2 sm:col-span-2 pt-2">
+              <Button type="submit">
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                {isEdit ? "Save Changes" : "Add to Inventory"}
+              </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/inventory")}>Cancel</Button>
             </div>
           </form>

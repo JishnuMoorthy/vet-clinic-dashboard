@@ -20,13 +20,19 @@ export default function OwnersList() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Pet Owners" actionLabel="Add Owner" onAction={() => navigate("/owners/new")} />
+      <PageHeader
+        title="Pet Owners"
+        subtitle={`${mockOwners.length} owners in your directory`}
+        actionLabel="Add Owner"
+        onAction={() => navigate("/owners/new")}
+        helpText="Click any row to see the owner's profile and their pets."
+      />
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search owners..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        <Input placeholder="Search by name, phone, or email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
       </div>
       {filtered.length === 0 ? (
-        <EmptyState message="No owners found" />
+        <EmptyState message="No owners found matching your search" />
       ) : (
         <div className="rounded-md border">
           <Table>
@@ -41,7 +47,7 @@ export default function OwnersList() {
             </TableHeader>
             <TableBody>
               {filtered.map((owner) => (
-                <TableRow key={owner.id} className="cursor-pointer" onClick={() => navigate(`/owners/${owner.id}`)}>
+                <TableRow key={owner.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/owners/${owner.id}`)}>
                   <TableCell className="font-medium">{owner.full_name}</TableCell>
                   <TableCell>{owner.phone}</TableCell>
                   <TableCell>{owner.email || "—"}</TableCell>

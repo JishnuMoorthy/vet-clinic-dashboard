@@ -1,6 +1,6 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useState } from "react";
-import { mockPets, mockOwners } from "@/lib/mock-data";
+import { mockPets, mockOwners, mockAppointments } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
 import { Plus, Trash2, CheckCircle2 } from "lucide-react";
 
 interface LineItem {
@@ -19,14 +21,24 @@ interface LineItem {
 export default function InvoiceForm() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
 
-  const [petId, setPetId] = useState("");
+  // Pre-fill from completed appointment
+  const prefillPetId = searchParams.get("pet_id") || "";
+  const prefillReason = searchParams.get("reason") || "";
+
+  const [petId, setPetId] = useState(prefillPetId);
   const [discount, setDiscount] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [items, setItems] = useState<LineItem[]>([{ description: "", quantity: 1, unit_price: 0 }]);
+  const [items, setItems] = useState<LineItem[]>([
+    { description: prefillReason ? `${prefillReason} — Consultation` : "", quantity: 1, unit_price: prefillReason ? 500 : 0 },
+  ]);
   const [submitted, setSubmitted] = useState(false);
 
   const selectedPet = mockPets.find((p) => p.id === petId);
+
+  const isDirty = !!petId || !!dueDate || items.some((li) => li.description !== "" || li.unit_price > 0);
+  const blocker = useUnsavedChanges(isDirty && !submitted);
 
   const addItem = () => setItems((prev) => [...prev, { description: "", quantity: 1, unit_price: 0 }]);
   const removeItem = (i: number) => setItems((prev) => prev.filter((_, idx) => idx !== i));
@@ -54,7 +66,7 @@ export default function InvoiceForm() {
     <div className="space-y-6">
       <PageHeader
         title="New Invoice"
-        subtitle="Create a bill for services rendered"
+        subtitle={prefillReason ? `Billing for: ${prefillReason}` : "Create a bill for services rendered"}
         backTo="/billing"
         helpText="Select a pet first — the owner fills in automatically. Add line items for each service."
       />
@@ -115,7 +127,14 @@ export default function InvoiceForm() {
                   </div>
                   <div>
                     {i === 0 && <Label className="text-xs text-muted-foreground">Price (₹)</Label>}
-                    <Input type="number" min="0" value={li.unit_price} onChange={(e) => updateItem(i, "unit_price", parseFloat(e.target.value) || 0)} />
+                    <Input
+                      type="number"
+                      min="0"
+                      value={li.unit_price || ""}
+                      onChange={(e) => updateItem(i, "unit_price", parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                      className={submitted && li.unit_price <= 0 ? "border-destructive" : ""}
+                    />
                   </div>
                   <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(i)} disabled={items.length === 1}>
                     <Trash2 className="h-4 w-4 text-destructive" />
@@ -128,7 +147,7 @@ export default function InvoiceForm() {
               <p>Subtotal: <span className="font-medium">₹{subtotal.toLocaleString()}</span></p>
               <div className="flex items-center gap-2">
                 <Label className="text-sm">Discount (₹):</Label>
-                <Input type="number" min="0" className="w-24" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+                <Input type="number" min="0" className="w-24" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
               </div>
               <p className="text-lg font-bold text-primary">Total: ₹{Math.max(0, total).toLocaleString()}</p>
             </div>
@@ -143,6 +162,7 @@ export default function InvoiceForm() {
           </form>
         </CardContent>
       </Card>
+      <UnsavedChangesDialog blocker={blocker} />
     </div>
   );
 }

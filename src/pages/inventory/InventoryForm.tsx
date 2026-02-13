@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
 import { CheckCircle2 } from "lucide-react";
 
 const categories = ["Vaccines", "Medications", "Consumables", "Equipment"];
@@ -28,10 +30,14 @@ export default function InventoryForm() {
     supplier: existing?.supplier || "",
     expiry_date: existing?.expiry_date || "",
   });
+  const [submitted, setSubmitted] = useState(false);
 
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const isDirty = form.name !== (existing?.name || "") || form.quantity !== (existing?.quantity?.toString() || "");
+  const blocker = useUnsavedChanges(isDirty && !submitted);
 
   const errors: Record<string, string> = {};
   if (!form.name && touched.name) errors.name = "Please enter the item name";
@@ -45,6 +51,7 @@ export default function InventoryForm() {
       toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
+    setSubmitted(true);
     toast({
       title: isEdit ? `${form.name} updated` : `${form.name} added to inventory`,
       description: isEdit ? "Stock record saved." : "Item is now tracked in your inventory.",
@@ -133,6 +140,7 @@ export default function InventoryForm() {
           </form>
         </CardContent>
       </Card>
+      <UnsavedChangesDialog blocker={blocker} />
     </div>
   );
 }

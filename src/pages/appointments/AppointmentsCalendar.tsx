@@ -297,7 +297,9 @@ export default function AppointmentsCalendar() {
               onSelectAppointment={setSelectedAppointment}
               onTimeClick={(d) => {
                 setCurrentDate(d);
-                navigate("/appointments/new");
+                const dateStr = format(d, "yyyy-MM-dd");
+                const timeStr = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+                navigate(`/appointments/new?date=${dateStr}&time=${timeStr}`);
               }}
               onReschedule={reschedule}
               dragOverSlot={dragOverSlot}
@@ -310,7 +312,10 @@ export default function AppointmentsCalendar() {
               currentDate={currentDate}
               appointments={getAptsForDay(currentDate)}
               onSelectAppointment={setSelectedAppointment}
-              onTimeClick={() => navigate("/appointments/new")}
+              onTimeClick={() => {
+                const dateStr = format(currentDate, "yyyy-MM-dd");
+                navigate(`/appointments/new?date=${dateStr}`);
+              }}
               onReschedule={reschedule}
               dragOverSlot={dragOverSlot}
               setDragOverSlot={setDragOverSlot}
@@ -897,6 +902,30 @@ function AppointmentDetail({
             </Button>
             <Button size="sm" variant="outline" className="text-destructive" onClick={onCancel}>
               <XCircle className="mr-1.5 h-3 w-3" /> Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                onClose();
+                navigate(`/pets/${apt.pet_id}`);
+              }}
+            >
+              <PawPrint className="mr-1.5 h-3 w-3" /> View Pet
+            </Button>
+          </div>
+        )}
+
+        {apt.status === "completed" && (
+          <div className="flex flex-wrap gap-2 border-t pt-3">
+            <Button
+              size="sm"
+              onClick={() => {
+                onClose();
+                navigate(`/billing/new?pet_id=${apt.pet_id}&reason=${encodeURIComponent(apt.reason)}`);
+              }}
+            >
+              Generate Invoice
             </Button>
             <Button
               size="sm"

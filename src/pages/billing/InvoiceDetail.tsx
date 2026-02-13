@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import { CreditCard, Printer } from "lucide-react";
+import { CreditCard, Printer, Download } from "lucide-react";
 
 export default function InvoiceDetail() {
   const { id } = useParams();
@@ -32,8 +32,8 @@ export default function InvoiceDetail() {
             <CreditCard className="mr-2 h-3 w-3" /> Mark Paid
           </Button>
         )}
-        <Button variant="outline" size="sm" onClick={() => { window.print(); }}>
-          <Printer className="mr-2 h-3 w-3" /> Print
+        <Button variant="outline" size="sm" onClick={() => { window.print(); }} className="print:hidden">
+          <Printer className="mr-2 h-3 w-3" /> Print / Save PDF
         </Button>
         {inv.status === "pending" && (
           <Button variant="outline" size="sm" onClick={() => toast({ title: "Reminder sent (mock)" })}>

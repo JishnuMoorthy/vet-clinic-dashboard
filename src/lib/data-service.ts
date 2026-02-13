@@ -918,7 +918,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   try {
     const today = new Date().toISOString().split('T')[0];
 
-    // Todays appointments count
+    // Today's appointments count
     const { count: todaysCount } = await supabase!
       .from('appointments')
       .select('*', { count: 'exact', head: true })

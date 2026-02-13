@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import type { User, AuthResponse, UserRole } from "@/types/api";
 import { api } from "@/lib/api";
+import { mockLogin } from "@/lib/mock-data";
 
 interface AuthContextType {
   user: User | null;
@@ -27,11 +28,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
+      // Try real backend first
       const data = await api.post<AuthResponse>("/auth/login", { email, password });
       localStorage.setItem("auth_token", data.access_token);
       localStorage.setItem("auth_user", JSON.stringify(data.user));
       setToken(data.access_token);
       setUser(data.user);
+    } catch (err: any) {
+      // If network error (backend unreachable), fall back to mock login
+      if (err.message === "Failed to fetch" || err.message === "Load failed") {
+        console.warn("[Auth] Backend unreachable, using mock login");
+        const data = mockLogin(email, password);
+        localStorage.setItem("auth_token", data.access_token);
+        localStorage.setItem("auth_user", JSON.stringify(data.user));
+        setToken(data.access_token);
+        setUser(data.user);
+      } else {
+        throw err;
+      }
     } finally {
       setIsLoading(false);
     }

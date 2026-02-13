@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
-import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
+
 import { Plus, Trash2, CheckCircle2 } from "lucide-react";
 
 interface LineItem {
@@ -38,7 +38,7 @@ export default function InvoiceForm() {
   const selectedPet = mockPets.find((p) => p.id === petId);
 
   const isDirty = !!petId || !!dueDate || items.some((li) => li.description !== "" || li.unit_price > 0);
-  const blocker = useUnsavedChanges(isDirty && !submitted);
+  useUnsavedChanges(isDirty && !submitted);
 
   const addItem = () => setItems((prev) => [...prev, { description: "", quantity: 1, unit_price: 0 }]);
   const removeItem = (i: number) => setItems((prev) => prev.filter((_, idx) => idx !== i));
@@ -162,7 +162,7 @@ export default function InvoiceForm() {
           </form>
         </CardContent>
       </Card>
-      <UnsavedChangesDialog blocker={blocker} />
+      
     </div>
   );
 }

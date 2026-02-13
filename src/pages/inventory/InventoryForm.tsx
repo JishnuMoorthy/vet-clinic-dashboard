@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
-import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
+
 import { CheckCircle2 } from "lucide-react";
 
 const categories = ["Vaccines", "Medications", "Consumables", "Equipment"];
@@ -37,7 +37,7 @@ export default function InventoryForm() {
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const isDirty = form.name !== (existing?.name || "") || form.quantity !== (existing?.quantity?.toString() || "");
-  const blocker = useUnsavedChanges(isDirty && !submitted);
+  useUnsavedChanges(isDirty && !submitted);
 
   const errors: Record<string, string> = {};
   if (!form.name && touched.name) errors.name = "Please enter the item name";
@@ -140,7 +140,7 @@ export default function InventoryForm() {
           </form>
         </CardContent>
       </Card>
-      <UnsavedChangesDialog blocker={blocker} />
+      
     </div>
   );
 }

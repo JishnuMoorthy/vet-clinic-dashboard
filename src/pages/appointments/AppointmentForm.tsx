@@ -10,7 +10,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
-import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
 import { CheckCircle2, AlertTriangle, Search } from "lucide-react";
 
 const vets = mockUsers.filter((u) => u.role === "vet");
@@ -36,7 +35,6 @@ export default function AppointmentForm() {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
 
-  // Pre-fill from calendar click-to-create
   const prefillDate = searchParams.get("date") || "";
   const prefillTime = searchParams.get("time") || "";
 
@@ -56,7 +54,7 @@ export default function AppointmentForm() {
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const isDirty = Object.values(form).some((v) => v !== "" && v !== prefillDate && v !== prefillTime);
-  const blocker = useUnsavedChanges(isDirty && !submitted);
+  useUnsavedChanges(isDirty && !submitted);
 
   const requiredFields = ["pet_id", "vet_id", "date", "time", "reason"] as const;
   const fieldLabels: Record<string, string> = {
@@ -72,7 +70,6 @@ export default function AppointmentForm() {
     if (!form[f] && touched[f]) errors[f] = fieldLabels[f];
   });
 
-  // Conflict detection: warn if vet already booked at this date+time
   const conflictWarning = useMemo(() => {
     if (!form.vet_id || !form.date || !form.time) return null;
     const conflict = mockAppointments.find(
@@ -89,7 +86,6 @@ export default function AppointmentForm() {
     return null;
   }, [form.vet_id, form.date, form.time]);
 
-  // Filtered pets for searchable dropdown
   const filteredPets = petSearch
     ? mockPets.filter(
         (p) =>
@@ -127,7 +123,6 @@ export default function AppointmentForm() {
       <Card className="max-w-2xl">
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="grid gap-5 sm:grid-cols-2">
-            {/* Pet selector with search */}
             <div className="space-y-1.5">
               <Label className={errors.pet_id ? "text-destructive" : ""}>Pet *</Label>
               <Select value={form.pet_id} onValueChange={(v) => { update("pet_id", v); markTouched("pet_id"); }}>
@@ -157,7 +152,6 @@ export default function AppointmentForm() {
               {errors.pet_id && <p className="text-xs text-destructive">{errors.pet_id}</p>}
             </div>
 
-            {/* Vet */}
             <div className="space-y-1.5">
               <Label className={errors.vet_id ? "text-destructive" : ""}>Vet *</Label>
               <Select value={form.vet_id} onValueChange={(v) => { update("vet_id", v); markTouched("vet_id"); }}>
@@ -174,7 +168,6 @@ export default function AppointmentForm() {
               {errors.vet_id && <p className="text-xs text-destructive">{errors.vet_id}</p>}
             </div>
 
-            {/* Date */}
             <div className="space-y-1.5">
               <Label className={errors.date ? "text-destructive" : ""}>Date *</Label>
               <Input
@@ -187,7 +180,6 @@ export default function AppointmentForm() {
               {errors.date && <p className="text-xs text-destructive">{errors.date}</p>}
             </div>
 
-            {/* Time with grouped slots */}
             <div className="space-y-1.5">
               <Label className={errors.time ? "text-destructive" : ""}>Time *</Label>
               <Select value={form.time} onValueChange={(v) => { update("time", v); markTouched("time"); }}>
@@ -216,7 +208,6 @@ export default function AppointmentForm() {
               {errors.time && <p className="text-xs text-destructive">{errors.time}</p>}
             </div>
 
-            {/* Conflict warning */}
             {conflictWarning && (
               <div className="sm:col-span-2 flex items-start gap-2 rounded-md border border-warning/50 bg-warning/10 p-3 text-sm text-warning">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -250,7 +241,6 @@ export default function AppointmentForm() {
           </form>
         </CardContent>
       </Card>
-      <UnsavedChangesDialog blocker={blocker} />
     </div>
   );
 }

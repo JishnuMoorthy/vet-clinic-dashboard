@@ -6,9 +6,18 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2 } from "lucide-react";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
+import { CheckCircle2, X } from "lucide-react";
+
+const SPECIALTY_OPTIONS = [
+  "Surgery", "Dermatology", "Dentistry", "Internal Medicine",
+  "Orthopedics", "Cardiology", "Neurology", "Oncology",
+  "Ophthalmology", "Emergency Care", "Exotic Animals", "Nutrition",
+];
 
 export default function StaffForm() {
   const { id } = useParams();
@@ -22,16 +31,28 @@ export default function StaffForm() {
     email: existing?.email || "",
     phone: existing?.phone || "",
     role: existing?.role || "staff",
-    specialties: existing?.specialties?.join(", ") || "",
   });
+  const [specialties, setSpecialties] = useState<string[]>(existing?.specialties || []);
+  const [submitted, setSubmitted] = useState(false);
 
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  const isDirty = form.full_name !== (existing?.full_name || "") ||
+    form.email !== (existing?.email || "") ||
+    form.phone !== (existing?.phone || "") ||
+    form.role !== (existing?.role || "staff");
+  const blocker = useUnsavedChanges(isDirty && !submitted);
+
   const errors: Record<string, string> = {};
   if (!form.full_name && touched.full_name) errors.full_name = "Please enter the team member's name";
   if (!form.email && touched.email) errors.email = "Email is needed for login access";
+
+  const addSpecialty = (s: string) => {
+    if (!specialties.includes(s)) setSpecialties((prev) => [...prev, s]);
+  };
+  const removeSpecialty = (s: string) => setSpecialties((prev) => prev.filter((x) => x !== s));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +61,7 @@ export default function StaffForm() {
       toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
+    setSubmitted(true);
     toast({
       title: isEdit ? `${form.full_name} updated` : `${form.full_name} added!`,
       description: isEdit ? "Staff record saved." : "Team member can now log in with their email.",
@@ -53,7 +75,7 @@ export default function StaffForm() {
         title={isEdit ? `Edit ${existing?.full_name}` : "Add Team Member"}
         subtitle={isEdit ? "Update staff details and role" : "Onboard a new member to your clinic team"}
         backTo="/staff"
-        helpText="Choose 'Vet' role to allow appointment assignments. Add specialties for vets."
+        helpText="Choose 'Vet' role to allow appointment assignments. Select specialties from the predefined list."
       />
       <Card className="max-w-2xl">
         <CardContent className="pt-6">
@@ -103,8 +125,29 @@ export default function StaffForm() {
             {form.role === "vet" && (
               <div className="space-y-1.5 sm:col-span-2">
                 <Label>Specialties</Label>
-                <Input value={form.specialties} onChange={(e) => update("specialties", e.target.value)} placeholder="e.g., Surgery, Dermatology" />
-                <p className="text-[11px] text-muted-foreground">Separate multiple specialties with commas</p>
+                {/* Selected specialties as tags */}
+                {specialties.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {specialties.map((s) => (
+                      <Badge key={s} variant="secondary" className="gap-1 pr-1">
+                        {s}
+                        <button type="button" onClick={() => removeSpecialty(s)} className="rounded-full hover:bg-muted p-0.5">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                {/* Dropdown to add from standard list */}
+                <Select onValueChange={addSpecialty} value="">
+                  <SelectTrigger><SelectValue placeholder="Add a specialty..." /></SelectTrigger>
+                  <SelectContent>
+                    {SPECIALTY_OPTIONS.filter((s) => !specialties.includes(s)).map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Select from standardized veterinary specialties</p>
               </div>
             )}
             <div className="flex gap-2 sm:col-span-2 pt-2">
@@ -117,6 +160,7 @@ export default function StaffForm() {
           </form>
         </CardContent>
       </Card>
+      <UnsavedChangesDialog blocker={blocker} />
     </div>
   );
 }

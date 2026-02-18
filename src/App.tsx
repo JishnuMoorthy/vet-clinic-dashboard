@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
+import ClinicDashboard from "@/pages/ClinicDashboard";
 import PetsList from "@/pages/pets/PetsList";
 import PetDetail from "@/pages/pets/PetDetail";
 import PetForm from "@/pages/pets/PetForm";
@@ -46,6 +47,7 @@ const App = () => (
               }
             >
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/operations" element={<ProtectedRoute allowedRoles={["admin"]}><ClinicDashboard /></ProtectedRoute>} />
               {/* Pets */}
               <Route path="/pets" element={<PetsList />} />
               <Route path="/pets/new" element={<PetForm />} />

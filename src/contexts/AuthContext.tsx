@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import type { User, AuthResponse, UserRole } from "@/types/api";
-import { api } from "@/lib/api";
-import { mockLogin } from "@/lib/mock-data";
+import { loginUser, logoutUser, getCurrentUser } from "@/lib/data-service";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 interface AuthContextType {
   user: User | null;
@@ -25,37 +25,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
   const [isLoading, setIsLoading] = useState(false);
 
+  // Listen for Supabase auth state changes
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+
+    const { data: { subscription } } = supabase!.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('[Auth] State change:', event);
+        
+        if (event === 'SIGNED_IN' && session) {
+          const currentUser = await getCurrentUser();
+          if (currentUser) {
+            localStorage.setItem("auth_token", session.access_token);
+            localStorage.setItem("auth_user", JSON.stringify(currentUser));
+            setToken(session.access_token);
+            setUser(currentUser);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          localStorage.removeItem("auth_token");
+          localStorage.removeItem("auth_user");
+          setToken(null);
+          setUser(null);
+        } else if (event === 'TOKEN_REFRESHED' && session) {
+          localStorage.setItem("auth_token", session.access_token);
+          setToken(session.access_token);
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Try real backend first
-      const data = await api.post<AuthResponse>("/auth/login", { email, password });
+      const data = await loginUser(email, password);
       localStorage.setItem("auth_token", data.access_token);
       localStorage.setItem("auth_user", JSON.stringify(data.user));
       setToken(data.access_token);
       setUser(data.user);
-    } catch (err: any) {
-      // If network error (backend unreachable), fall back to mock login
-      if (err.message === "Failed to fetch" || err.message === "Load failed") {
-        console.warn("[Auth] Backend unreachable, using mock login");
-        const data = mockLogin(email, password);
-        localStorage.setItem("auth_token", data.access_token);
-        localStorage.setItem("auth_user", JSON.stringify(data.user));
-        setToken(data.access_token);
-        setUser(data.user);
-      } else {
-        throw err;
-      }
+    } catch (err) {
+      console.error('[Auth] Login error:', err);
+      throw err;
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("auth_user");
-    setToken(null);
-    setUser(null);
+  const logout = useCallback(async () => {
+    try {
+      await logoutUser();
+    } catch (err) {
+      console.error('[Auth] Logout error:', err);
+    } finally {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      setToken(null);
+      setUser(null);
+    }
   }, []);
 
   const hasRole = useCallback(

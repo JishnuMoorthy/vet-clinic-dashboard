@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   BarChart3,
+  Stethoscope,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,6 +44,7 @@ const adminNav = [
 export function AppSidebar() {
   const { user, logout, hasRole } = useAuth();
   const isAdmin = hasRole(["admin"]);
+  const isVetOrAdmin = hasRole(["vet", "admin"]);
 
   return (
     <Sidebar>
@@ -82,6 +84,30 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isVetOrAdmin && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/appointments"
+                      className="flex items-center gap-2"
+                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                    >
+                      <Stethoscope className="h-4 w-4" />
+                      <div className="flex flex-col">
+                        <span className="text-sm">Consultations</span>
+                        <span className="text-[10px] opacity-50 leading-tight">Today's patients</span>
+                      </div>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {isAdmin && (
           <SidebarGroup>

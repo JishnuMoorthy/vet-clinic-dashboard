@@ -8,6 +8,8 @@ import type {
   Invoice,
   InvoiceLineItem,
   InventoryItem,
+  MedicalRecord,
+  Vaccination,
 } from "@/types/api";
 
 // ============= Mock Users & Auth =============
@@ -190,6 +192,110 @@ export const mockInventory: InventoryItem[] = [
   { id: "item-006", name: "Deworming Tablets", category: "Medications", quantity: 60, reorder_level: 25, unit_price: 50, supplier: "VetPharma India", expiry_date: "2027-01-15", status: "ok", created_at: "2025-01-01T00:00:00Z", updated_at: "2026-01-20T00:00:00Z" },
   { id: "item-007", name: "X-Ray Film (Pack)", category: "Equipment", quantity: 12, reorder_level: 5, unit_price: 2200, supplier: "DiagnoVet", status: "ok", created_at: "2025-06-01T00:00:00Z", updated_at: "2026-02-01T00:00:00Z" },
   { id: "item-008", name: "Antiseptic Solution 1L", category: "Consumables", quantity: 4, reorder_level: 8, unit_price: 280, supplier: "MedSupply Co", expiry_date: "2026-08-15", status: "low", created_at: "2025-01-01T00:00:00Z", updated_at: "2026-02-05T00:00:00Z" },
+];
+
+// ============= Mock Medical Records =============
+
+export const mockMedicalRecords: MedicalRecord[] = [
+  {
+    id: "rec-001", pet_id: "pet-001", appointment_id: "apt-008", vet_id: "mock-vet-001", vet: mockUsers[1],
+    visit_date: "2026-02-10", chief_complaint: "Annual vaccination due",
+    symptoms: "No symptoms reported — routine visit", duration_onset: "N/A", appetite_behavior: "Normal appetite, active and playful",
+    weight_kg: 32, temperature_f: 101.2, heart_rate_bpm: 80, respiratory_rate: 18, body_condition_score: 6,
+    physical_exam_findings: "Healthy coat, clear eyes and ears, no abnormalities detected. Teeth slightly tartar-buildup on upper molars.",
+    primary_diagnosis: "Healthy — routine checkup", severity: "mild",
+    prescriptions: [{ medication: "Rabies Vaccine", dosage: "1 mL", frequency: "Single dose", duration: "Annual" }],
+    procedures_performed: "Rabies vaccination administered", follow_up_instructions: "Monitor injection site for 48 hours. Next annual vaccination due Feb 2027.",
+    next_appointment_recommendation: "1 year", created_at: "2026-02-10T00:00:00Z", updated_at: "2026-02-10T00:00:00Z",
+  },
+  {
+    id: "rec-002", pet_id: "pet-003", vet_id: "mock-vet-001", vet: mockUsers[1],
+    visit_date: "2026-01-20", chief_complaint: "Persistent scratching and hair loss on left ear",
+    symptoms: "Owner reports excessive scratching for 2 weeks, hair loss around left ear, redness visible",
+    duration_onset: "2 weeks", appetite_behavior: "Reduced appetite, slightly lethargic", prior_treatments: "Owner tried coconut oil topically — no improvement",
+    weight_kg: 37.5, temperature_f: 102.0, heart_rate_bpm: 90, respiratory_rate: 22, body_condition_score: 5,
+    physical_exam_findings: "Erythema and excoriation around left pinna. Mild secondary bacterial infection. No mites detected on skin scrape.",
+    diagnostic_results: "Skin scrape negative for mites. Cytology shows bacterial overgrowth.",
+    primary_diagnosis: "Allergic dermatitis with secondary bacterial infection", differential_diagnoses: "Contact allergy, food allergy, atopic dermatitis",
+    severity: "moderate",
+    prescriptions: [
+      { medication: "Cephalexin", dosage: "500 mg", frequency: "Twice daily", duration: "14 days" },
+      { medication: "Apoquel", dosage: "16 mg", frequency: "Once daily", duration: "30 days" },
+    ],
+    follow_up_instructions: "Keep area clean and dry. Prevent scratching with e-collar if needed. Return in 2 weeks for recheck.",
+    next_appointment_recommendation: "2 weeks", created_at: "2026-01-20T00:00:00Z", updated_at: "2026-01-20T00:00:00Z",
+  },
+  {
+    id: "rec-003", pet_id: "pet-004", vet_id: "mock-vet-002", vet: mockUsers[2],
+    visit_date: "2026-01-15", chief_complaint: "Dental checkup — bad breath reported",
+    symptoms: "Owner noticed foul breath for past month, reluctance to eat hard food",
+    duration_onset: "1 month", appetite_behavior: "Prefers wet food, avoids kibble",
+    weight_kg: 3.6, temperature_f: 101.5, heart_rate_bpm: 160, respiratory_rate: 28, body_condition_score: 4,
+    physical_exam_findings: "Grade 2 periodontal disease. Gingivitis on upper premolars. Two teeth with moderate tartar buildup.",
+    primary_diagnosis: "Periodontal disease — Grade 2", severity: "moderate",
+    prescriptions: [
+      { medication: "Clindamycin", dosage: "25 mg", frequency: "Twice daily", duration: "10 days" },
+    ],
+    procedures_performed: "Dental scaling and polishing under sedation",
+    follow_up_instructions: "Soft food for 3 days post-procedure. Begin daily dental treats. Brush teeth 3x weekly.",
+    next_appointment_recommendation: "6 months", created_at: "2026-01-15T00:00:00Z", updated_at: "2026-01-15T00:00:00Z",
+  },
+  {
+    id: "rec-004", pet_id: "pet-008", vet_id: "mock-vet-002", vet: mockUsers[2],
+    visit_date: "2026-02-01", chief_complaint: "Limping on hind left leg after fall",
+    symptoms: "Dog fell from terrace steps 2 days ago, limping since, whimpers when leg is touched",
+    duration_onset: "2 days", appetite_behavior: "Normal appetite, less active than usual", prior_treatments: "Owner applied ice pack",
+    weight_kg: 20, temperature_f: 101.8, heart_rate_bpm: 100, respiratory_rate: 24, body_condition_score: 5,
+    physical_exam_findings: "Swelling and tenderness on left stifle. No crepitus. Drawer sign negative.",
+    diagnostic_results: "X-ray shows no fracture. Mild soft tissue swelling consistent with sprain.",
+    primary_diagnosis: "Left stifle sprain — Grade I", differential_diagnoses: "Partial CCL tear", severity: "mild",
+    prescriptions: [
+      { medication: "Meloxicam", dosage: "0.1 mg/kg", frequency: "Once daily with food", duration: "7 days" },
+      { medication: "Tramadol", dosage: "2 mg/kg", frequency: "Twice daily", duration: "5 days" },
+    ],
+    follow_up_instructions: "Strict rest for 2 weeks — leash walks only. No jumping or running. Apply cold compress 10 min twice daily.",
+    next_appointment_recommendation: "2 weeks", created_at: "2026-02-01T00:00:00Z", updated_at: "2026-02-01T00:00:00Z",
+  },
+  {
+    id: "rec-005", pet_id: "pet-009", vet_id: "mock-vet-002", vet: mockUsers[2],
+    visit_date: "2026-02-09", chief_complaint: "Eye discharge and squinting",
+    symptoms: "Watery discharge from left eye for 3 days, squinting in bright light",
+    duration_onset: "3 days", appetite_behavior: "Normal",
+    weight_kg: 5, temperature_f: 101.0, heart_rate_bpm: 180, respiratory_rate: 30, body_condition_score: 5,
+    physical_exam_findings: "Conjunctival hyperemia left eye. Serous discharge. No corneal ulcer on fluorescein stain. Third eyelid slightly elevated.",
+    diagnostic_results: "Fluorescein test negative. Schirmer tear test normal.",
+    primary_diagnosis: "Viral conjunctivitis", differential_diagnoses: "Feline herpesvirus-1, allergic conjunctivitis", severity: "mild",
+    prescriptions: [
+      { medication: "Tobramycin eye drops", dosage: "1 drop", frequency: "Three times daily", duration: "7 days" },
+      { medication: "L-Lysine supplement", dosage: "250 mg", frequency: "Once daily", duration: "30 days" },
+    ],
+    follow_up_instructions: "Keep eye clean with saline wipes. Monitor for worsening or green discharge.",
+    next_appointment_recommendation: "1 week if not improving", created_at: "2026-02-09T00:00:00Z", updated_at: "2026-02-09T00:00:00Z",
+  },
+  {
+    id: "rec-006", pet_id: "pet-005", vet_id: "mock-vet-001", vet: mockUsers[1],
+    visit_date: "2026-02-10", chief_complaint: "Blood work follow-up — annual screening",
+    symptoms: "No symptoms — routine wellness check",
+    weight_kg: 29, temperature_f: 101.4, heart_rate_bpm: 75, respiratory_rate: 16, body_condition_score: 7,
+    physical_exam_findings: "Overweight. Mild tartar on teeth. Otherwise healthy.",
+    diagnostic_results: "CBC and chemistry panel within normal limits. Slight elevation in ALT (68 U/L) — monitor.",
+    primary_diagnosis: "Healthy — overweight", severity: "mild",
+    prescriptions: [],
+    follow_up_instructions: "Reduce daily food intake by 15%. Increase daily walks to 30+ min. Recheck ALT in 3 months.",
+    next_appointment_recommendation: "3 months", created_at: "2026-02-10T00:00:00Z", updated_at: "2026-02-10T00:00:00Z",
+  },
+];
+
+// ============= Mock Vaccinations =============
+
+export const mockVaccinations: Vaccination[] = [
+  { id: "vax-001", pet_id: "pet-001", vaccine_name: "Rabies", date_administered: "2026-02-10", next_due_date: "2027-02-10", batch_number: "RB-2026-4421", administered_by_id: "mock-vet-001", administered_by: mockUsers[1], created_at: "2026-02-10T00:00:00Z", updated_at: "2026-02-10T00:00:00Z" },
+  { id: "vax-002", pet_id: "pet-001", vaccine_name: "DHPP", date_administered: "2025-08-15", next_due_date: "2026-08-15", batch_number: "DH-2025-1102", administered_by_id: "mock-vet-001", administered_by: mockUsers[1], created_at: "2025-08-15T00:00:00Z", updated_at: "2025-08-15T00:00:00Z" },
+  { id: "vax-003", pet_id: "pet-003", vaccine_name: "Rabies", date_administered: "2025-06-20", next_due_date: "2026-06-20", batch_number: "RB-2025-3305", administered_by_id: "mock-vet-001", administered_by: mockUsers[1], created_at: "2025-06-20T00:00:00Z", updated_at: "2025-06-20T00:00:00Z" },
+  { id: "vax-004", pet_id: "pet-004", vaccine_name: "FVRCP", date_administered: "2025-04-10", next_due_date: "2026-01-10", batch_number: "FV-2025-0982", administered_by_id: "mock-vet-002", administered_by: mockUsers[2], created_at: "2025-04-10T00:00:00Z", updated_at: "2025-04-10T00:00:00Z" },
+  { id: "vax-005", pet_id: "pet-005", vaccine_name: "DHPP", date_administered: "2025-03-01", next_due_date: "2026-03-01", batch_number: "DH-2025-0567", administered_by_id: "mock-vet-001", administered_by: mockUsers[1], created_at: "2025-03-01T00:00:00Z", updated_at: "2025-03-01T00:00:00Z" },
+  { id: "vax-006", pet_id: "pet-002", vaccine_name: "FVRCP", date_administered: "2025-09-12", next_due_date: "2026-09-12", batch_number: "FV-2025-2210", administered_by_id: "mock-vet-002", administered_by: mockUsers[2], created_at: "2025-09-12T00:00:00Z", updated_at: "2025-09-12T00:00:00Z" },
+  { id: "vax-007", pet_id: "pet-007", vaccine_name: "Rabies", date_administered: "2025-01-15", next_due_date: "2026-01-15", batch_number: "RB-2025-0089", administered_by_id: "mock-vet-001", administered_by: mockUsers[1], created_at: "2025-01-15T00:00:00Z", updated_at: "2025-01-15T00:00:00Z" },
 ];
 
 // ============= Dashboard Data =============

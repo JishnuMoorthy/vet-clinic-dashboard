@@ -92,7 +92,7 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <NavLink
-                      to="/appointments"
+                      to="/consultations"
                       className="flex items-center gap-2"
                       activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                     >

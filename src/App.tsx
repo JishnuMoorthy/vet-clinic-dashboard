@@ -26,6 +26,7 @@ import InventoryForm from "@/pages/inventory/InventoryForm";
 import StaffList from "@/pages/staff/StaffList";
 import StaffForm from "@/pages/staff/StaffForm";
 import ConsultationView from "@/pages/consultation/ConsultationView";
+import ConsultationsList from "@/pages/consultation/ConsultationsList";
 import MedicalRecordForm from "@/pages/medical-records/MedicalRecordForm";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
@@ -66,7 +67,8 @@ const App = () => (
               <Route path="/appointments" element={<AppointmentsCalendar />} />
               <Route path="/appointments/list" element={<AppointmentsList />} />
               <Route path="/appointments/new" element={<AppointmentForm />} />
-              {/* Consultation (vet/admin) */}
+              {/* Consultations (vet/admin) */}
+              <Route path="/consultations" element={<ProtectedRoute allowedRoles={["vet", "admin"]}><ConsultationsList /></ProtectedRoute>} />
               <Route path="/consultation/:appointmentId" element={<ProtectedRoute allowedRoles={["vet", "admin"]}><ConsultationView /></ProtectedRoute>} />
               {/* Billing (admin) */}
               <Route path="/billing" element={<ProtectedRoute allowedRoles={["admin"]}><InvoicesList /></ProtectedRoute>} />

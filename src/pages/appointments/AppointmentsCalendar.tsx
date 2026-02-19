@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   ChevronLeft,
   ChevronRight,
@@ -840,6 +841,81 @@ function CurrentTimeIndicator() {
   );
 }
 
+// ============= Appointment Detail Actions (role-based) =============
+
+function AppointmentDetailActions({
+  apt,
+  onClose,
+  onComplete,
+  onCancel,
+}: {
+  apt: Appointment;
+  onClose: () => void;
+  onComplete: () => void;
+  onCancel: () => void;
+}) {
+  const navigate = useNavigate();
+  const { hasRole } = useAuth();
+  const isAdmin = hasRole(["admin"]);
+
+  if (apt.status === "scheduled") {
+    return (
+      <div className="flex flex-wrap gap-2 border-t pt-3">
+        {isAdmin && (
+          <>
+            <Button size="sm" variant="outline" onClick={onComplete}>
+              <CheckCircle className="mr-1.5 h-3 w-3 text-green-500" /> Complete
+            </Button>
+            <Button size="sm" variant="outline" className="text-destructive" onClick={onCancel}>
+              <XCircle className="mr-1.5 h-3 w-3" /> Cancel
+            </Button>
+          </>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            onClose();
+            navigate(`/pets/${apt.pet_id}`);
+          }}
+        >
+          <PawPrint className="mr-1.5 h-3 w-3" /> View Pet
+        </Button>
+      </div>
+    );
+  }
+
+  if (apt.status === "completed") {
+    return (
+      <div className="flex flex-wrap gap-2 border-t pt-3">
+        {isAdmin && (
+          <Button
+            size="sm"
+            onClick={() => {
+              onClose();
+              navigate(`/billing/new?pet_id=${apt.pet_id}&reason=${encodeURIComponent(apt.reason)}`);
+            }}
+          >
+            Generate Invoice
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            onClose();
+            navigate(`/pets/${apt.pet_id}`);
+          }}
+        >
+          <PawPrint className="mr-1.5 h-3 w-3" /> View Pet
+        </Button>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 // ============= Appointment Detail =============
 
 function AppointmentDetail({
@@ -896,59 +972,7 @@ function AppointmentDetail({
           <StatusBadge status={apt.status} />
         </div>
 
-        {apt.status === "scheduled" && (
-          <div className="flex flex-wrap gap-2 border-t pt-3">
-            <Button
-              size="sm"
-              onClick={() => {
-                onClose();
-                navigate(`/consultation/${apt.id}`);
-              }}
-            >
-              <Stethoscope className="mr-1.5 h-3 w-3" /> Start Consultation
-            </Button>
-            <Button size="sm" variant="outline" onClick={onComplete}>
-              <CheckCircle className="mr-1.5 h-3 w-3 text-green-500" /> Complete
-            </Button>
-            <Button size="sm" variant="outline" className="text-destructive" onClick={onCancel}>
-              <XCircle className="mr-1.5 h-3 w-3" /> Cancel
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                onClose();
-                navigate(`/pets/${apt.pet_id}`);
-              }}
-            >
-              <PawPrint className="mr-1.5 h-3 w-3" /> View Pet
-            </Button>
-          </div>
-        )}
-
-        {apt.status === "completed" && (
-          <div className="flex flex-wrap gap-2 border-t pt-3">
-            <Button
-              size="sm"
-              onClick={() => {
-                onClose();
-                navigate(`/billing/new?pet_id=${apt.pet_id}&reason=${encodeURIComponent(apt.reason)}`);
-              }}
-            >
-              Generate Invoice
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                onClose();
-                navigate(`/pets/${apt.pet_id}`);
-              }}
-            >
-              <PawPrint className="mr-1.5 h-3 w-3" /> View Pet
-            </Button>
-          </div>
-        )}
+        <AppointmentDetailActions apt={apt} onClose={onClose} onComplete={onComplete} onCancel={onCancel} />
       </div>
     </>
   );

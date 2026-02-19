@@ -121,13 +121,14 @@ export const mockPets: Pet[] = [
 
 // ============= Mock Appointments =============
 
-const today = new Date().toISOString().split("T")[0];
+const now = new Date();
+const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
 export const mockAppointments: Appointment[] = [
-  { id: "apt-001", pet_id: "pet-001", pet: mockPets[0], vet_id: "mock-vet-001", vet: mockUsers[1], date: today, time: "09:00", reason: "Annual vaccination", status: "scheduled", created_at: "2026-02-01T00:00:00Z", updated_at: "2026-02-01T00:00:00Z" },
+  { id: "apt-001", pet_id: "pet-001", pet: mockPets[0], vet_id: "mock-vet-001", vet: mockUsers[1], date: today, time: "09:00", reason: "Annual vaccination", status: "completed", created_at: "2026-02-01T00:00:00Z", updated_at: "2026-02-01T00:00:00Z" },
   { id: "apt-002", pet_id: "pet-003", pet: mockPets[2], vet_id: "mock-vet-001", vet: mockUsers[1], date: today, time: "10:30", reason: "Skin allergy follow-up", notes: "Check rash on left ear", status: "scheduled", created_at: "2026-02-05T00:00:00Z", updated_at: "2026-02-05T00:00:00Z" },
   { id: "apt-003", pet_id: "pet-004", pet: mockPets[3], vet_id: "mock-vet-002", vet: mockUsers[2], date: today, time: "11:00", reason: "Dental checkup", status: "scheduled", created_at: "2026-02-08T00:00:00Z", updated_at: "2026-02-08T00:00:00Z" },
-  { id: "apt-004", pet_id: "pet-007", pet: mockPets[6], vet_id: "mock-vet-002", vet: mockUsers[2], date: today, time: "14:00", reason: "Limping — right front leg", status: "scheduled", created_at: "2026-02-10T00:00:00Z", updated_at: "2026-02-10T00:00:00Z" },
+  { id: "apt-004", pet_id: "pet-007", pet: mockPets[6], vet_id: "mock-vet-002", vet: mockUsers[2], date: today, time: "14:00", reason: "Limping — right front leg", status: "cancelled", created_at: "2026-02-10T00:00:00Z", updated_at: "2026-02-10T00:00:00Z" },
   { id: "apt-005", pet_id: "pet-010", pet: mockPets[9], vet_id: "mock-vet-001", vet: mockUsers[1], date: today, time: "15:30", reason: "Grooming & general checkup", status: "scheduled", created_at: "2026-02-11T00:00:00Z", updated_at: "2026-02-11T00:00:00Z" },
   { id: "apt-006", pet_id: "pet-002", pet: mockPets[1], vet_id: "mock-vet-001", vet: mockUsers[1], date: "2026-02-14", time: "09:30", reason: "Vaccination booster", status: "scheduled", created_at: "2026-02-10T00:00:00Z", updated_at: "2026-02-10T00:00:00Z" },
   { id: "apt-007", pet_id: "pet-008", pet: mockPets[7], vet_id: "mock-vet-002", vet: mockUsers[2], date: "2026-02-14", time: "11:00", reason: "Post-surgery follow-up", status: "scheduled", created_at: "2026-02-12T00:00:00Z", updated_at: "2026-02-12T00:00:00Z" },

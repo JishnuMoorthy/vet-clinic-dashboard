@@ -42,6 +42,7 @@ import {
   CheckCircle,
   XCircle,
   GripVertical,
+  Stethoscope,
 } from "lucide-react";
 
 type CalendarViewMode = "day" | "week" | "month";
@@ -897,6 +898,15 @@ function AppointmentDetail({
 
         {apt.status === "scheduled" && (
           <div className="flex flex-wrap gap-2 border-t pt-3">
+            <Button
+              size="sm"
+              onClick={() => {
+                onClose();
+                navigate(`/consultation/${apt.id}`);
+              }}
+            >
+              <Stethoscope className="mr-1.5 h-3 w-3" /> Start Consultation
+            </Button>
             <Button size="sm" variant="outline" onClick={onComplete}>
               <CheckCircle className="mr-1.5 h-3 w-3 text-green-500" /> Complete
             </Button>

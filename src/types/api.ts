@@ -114,6 +114,61 @@ export interface DashboardData {
   low_stock_items: InventoryItem[];
 }
 
+export interface Prescription {
+  medication: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+}
+
+export interface MedicalRecord {
+  id: string;
+  pet_id: string;
+  pet?: Pet;
+  appointment_id?: string;
+  vet_id: string;
+  vet?: User;
+  visit_date: string;
+  chief_complaint: string;
+  // Subjective
+  symptoms: string;
+  duration_onset?: string;
+  appetite_behavior?: string;
+  prior_treatments?: string;
+  // Objective (Vitals)
+  weight_kg?: number;
+  temperature_f?: number;
+  heart_rate_bpm?: number;
+  respiratory_rate?: number;
+  body_condition_score?: number;
+  physical_exam_findings?: string;
+  diagnostic_results?: string;
+  // Assessment
+  primary_diagnosis: string;
+  differential_diagnoses?: string;
+  severity: "mild" | "moderate" | "severe" | "critical";
+  // Plan
+  prescriptions: Prescription[];
+  procedures_performed?: string;
+  follow_up_instructions?: string;
+  next_appointment_recommendation?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Vaccination {
+  id: string;
+  pet_id: string;
+  vaccine_name: string;
+  date_administered: string;
+  next_due_date: string;
+  batch_number?: string;
+  administered_by_id: string;
+  administered_by?: User;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;

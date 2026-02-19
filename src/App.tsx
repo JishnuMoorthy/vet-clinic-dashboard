@@ -25,6 +25,8 @@ import InventoryList from "@/pages/inventory/InventoryList";
 import InventoryForm from "@/pages/inventory/InventoryForm";
 import StaffList from "@/pages/staff/StaffList";
 import StaffForm from "@/pages/staff/StaffForm";
+import ConsultationView from "@/pages/consultation/ConsultationView";
+import MedicalRecordForm from "@/pages/medical-records/MedicalRecordForm";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
 
@@ -52,6 +54,8 @@ const App = () => (
               <Route path="/pets" element={<PetsList />} />
               <Route path="/pets/new" element={<PetForm />} />
               <Route path="/pets/:id" element={<PetDetail />} />
+              <Route path="/pets/:petId/records/new" element={<MedicalRecordForm />} />
+              <Route path="/pets/:petId/records/:recordId" element={<MedicalRecordForm />} />
               <Route path="/pets/:id/edit" element={<PetForm />} />
               {/* Owners */}
               <Route path="/owners" element={<OwnersList />} />
@@ -62,6 +66,8 @@ const App = () => (
               <Route path="/appointments" element={<AppointmentsCalendar />} />
               <Route path="/appointments/list" element={<AppointmentsList />} />
               <Route path="/appointments/new" element={<AppointmentForm />} />
+              {/* Consultation (vet/admin) */}
+              <Route path="/consultation/:appointmentId" element={<ProtectedRoute allowedRoles={["vet", "admin"]}><ConsultationView /></ProtectedRoute>} />
               {/* Billing (admin) */}
               <Route path="/billing" element={<ProtectedRoute allowedRoles={["admin"]}><InvoicesList /></ProtectedRoute>} />
               <Route path="/billing/new" element={<ProtectedRoute allowedRoles={["admin"]}><InvoiceForm /></ProtectedRoute>} />

@@ -1,59 +1,84 @@
 
 
-# Interactive Pet Detail Page — Linked Records & Navigation
+# Separate Appointments from Consultations + Role-Based Access
 
 ## Overview
 
-Currently, the Medical History, Appointments, and Vaccinations cards on the Pet Detail page are static displays. This plan makes every item in those cards **clickable**, navigating users to the relevant detail/edit page or opening a rich detail view. It also adds interactive enhancements to make the page feel like a true patient dashboard.
+Currently, "Consultations" in the sidebar links to `/appointments` (the same page), and the appointment detail dialog shows "Start Consultation" to all users. This plan creates a clean separation between the two views and enforces role-based visibility on actions across the app.
 
 ---
 
-## Changes to `src/pages/pets/PetDetail.tsx`
+## What Changes
 
-### 1. Clickable Appointments
-Each appointment row becomes a clickable card that:
-- **Scheduled/Active appointments**: Navigates to the consultation view (`/consultation/:appointmentId`) for vets/admins, or opens the appointment on the calendar for staff.
-- **Completed appointments**: Opens the linked medical record (if one exists) at `/pets/:petId/records/:recordId`.
-- Visual affordance: `cursor-pointer hover:bg-accent/50 transition-colors` plus a small chevron-right icon.
+### 1. New Consultations Page (`src/pages/consultation/ConsultationsList.tsx`)
 
-### 2. Clickable Medical Records
-Each medical record entry becomes clickable:
-- Navigates to `/pets/:petId/records/:recordId` to view/edit the full SOAP note.
-- Adds hover effect and chevron icon for discoverability.
-- Shows a condensed preview (diagnosis, severity, prescriptions) but clicking reveals the full record.
+A dedicated page at `/consultations` showing today's appointments filtered for the logged-in vet (or all appointments for admin). This is the vet's "my patients today" queue.
 
-### 3. Clickable Vaccinations
-Each vaccination row becomes clickable:
-- Opens a **detail dialog** (using shadcn Dialog) showing batch number, administered-by vet, and full date details — since vaccinations don't have their own page.
-- Overdue vaccinations get a prominent "Schedule Booster" button inside the dialog that navigates to `/appointments/new`.
+Layout:
+- Page header: "Today's Consultations"
+- List of today's appointments assigned to the logged-in vet, sorted by time
+- Each card shows: time, pet name, species/breed, owner, reason, status
+- **"Start Consultation"** button on each scheduled appointment (navigates to `/consultation/:id`)
+- Completed appointments show a "View Record" link
+- Admin sees all vets' appointments with a vet filter dropdown
 
-### 4. Quick-Action Enhancements
-- **Owner name** in Pet Information becomes a link to `/owners/:ownerId`.
-- **"View All" links** added to Appointments and Medical History card headers, navigating to `/appointments/list` (filtered) and a scrollable full history respectively.
+### 2. Update Sidebar (`src/components/AppSidebar.tsx`)
 
-### 5. Expandable Medical Record Preview
-- Medical record cards get a **click-to-expand** behavior: first click expands inline to show vitals summary and full SOAP sections, second click (or a "View Full Record" button) navigates to the record form.
-- This gives vets a quick glance without leaving the page.
+Change the Consultations nav link from `/appointments` to `/consultations` so it points to the new dedicated page.
+
+### 3. Remove Consultation Actions from Appointments View
+
+In `AppointmentsCalendar.tsx`, the `AppointmentDetail` dialog currently shows:
+- "Start Consultation" button
+- "Complete" and "Cancel" buttons
+
+**After the change:**
+- **All users** see: appointment details (date, time, pet, vet, notes, status), "View Pet" button
+- **Admin only** sees: "Complete", "Cancel", "Generate Invoice" (status management)
+- **"Start Consultation" button is removed** from this dialog entirely -- consultations are accessed only from `/consultations`
+
+### 4. Route Registration (`src/App.tsx`)
+
+Add the new route:
+```
+/consultations -> ConsultationsList (vet, admin only)
+```
+
+### 5. Role-Based Access Matrix
+
+Here is the full access control picture going forward:
+
+| Feature | Admin | Vet | Staff |
+|---------|-------|-----|-------|
+| Dashboard | Yes | Yes | Yes |
+| Pets (view/edit) | Yes | Yes | Yes |
+| Owners (view/edit) | Yes | Yes | Yes |
+| Appointments (view calendar, create) | Yes | Yes | Yes |
+| Appointment actions (complete/cancel) | Yes | No | No |
+| Consultations page | Yes | Yes | No |
+| Start/Edit Consultation | Yes | Yes | No |
+| Operations Dashboard | Yes | No | No |
+| Billing | Yes | No | No |
+| Inventory | Yes | No | No |
+| Staff Management | Yes | No | No |
 
 ---
 
-## File Changes
+## File Changes Summary
 
 | File | Action | Description |
 |------|--------|-------------|
-| `src/pages/pets/PetDetail.tsx` | Edit | Add click handlers, hover states, navigation links, vaccination dialog, expandable records, owner link |
-
-No new files needed. All navigation targets already exist as routes.
+| `src/pages/consultation/ConsultationsList.tsx` | Create | New "Today's Consultations" page for vets |
+| `src/components/AppSidebar.tsx` | Edit | Point Consultations link to `/consultations` |
+| `src/pages/appointments/AppointmentsCalendar.tsx` | Edit | Remove "Start Consultation" from dialog; restrict "Complete"/"Cancel" to admin |
+| `src/App.tsx` | Edit | Add `/consultations` route with vet/admin role protection |
 
 ---
 
 ## Technical Details
 
-- Appointment click handlers use `navigate()` — for scheduled appointments to `/consultation/:id`, for completed to the linked record.
-- Medical record rows use `navigate(/pets/${pet.id}/records/${rec.id})` which maps to the existing `MedicalRecordForm` route.
-- Vaccination detail uses a `useState`-driven `Dialog` component (already imported pattern from `ConfirmDialog`).
-- Owner name uses `navigate(/owners/${pet.owner_id})`.
-- All hover states use semantic Tailwind: `hover:bg-accent/50`, `cursor-pointer`, `transition-colors`.
-- A small `ChevronRight` icon from lucide-react signals clickability on each row.
-- "View All" buttons use `Button variant="ghost" size="sm"`.
-
+- `ConsultationsList.tsx` filters `mockAppointments` by today's date and the logged-in user's ID (for vets) or shows all (for admins)
+- Uses `useAuth()` to get current user and role
+- Appointment dialog conditionally renders action buttons using `hasRole()` from `useAuth`
+- The existing `ConsultationView.tsx` at `/consultation/:appointmentId` remains unchanged -- it is the actual clinical encounter screen
+- All new components use existing shadcn/ui primitives and semantic Tailwind tokens

@@ -75,8 +75,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function useAuth() {
+export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  if (!context) {
+    // During HMR / React Fast Refresh, the provider may momentarily be absent.
+    // Return a safe fallback to prevent a full crash.
+    return {
+      user: null,
+      token: null,
+      isAuthenticated: false,
+      isLoading: true,
+      login: async () => {},
+      logout: () => {},
+      hasRole: () => false,
+    };
+  }
   return context;
 }

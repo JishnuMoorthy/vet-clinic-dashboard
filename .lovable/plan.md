@@ -1,100 +1,150 @@
 
 
-# 🐾 Mia VMS — Veterinary Admin Dashboard
+# Medical Records Module & Vet Consultation View
 
-A production-ready admin dashboard for managing a veterinary clinic, integrating with your FastAPI backend at `http://localhost:8000/api/v1`.
-
----
-
-## Phase 1: Foundation & Authentication (Days 1-2)
-
-### 1. Project Setup & Design System
-- Configure a professional healthcare color scheme (teal/blue primary, clean neutrals)
-- Set up TypeScript types for all API entities (Pet, Owner, Appointment, Invoice, Inventory, User)
-- Create a centralized API client (`lib/api.ts`) with automatic token injection, error handling, and base URL configuration
-- Set up auth context with login/logout, token storage, and role-based access
-
-### 2. Login Page (`/login`)
-- Clean login form with email + password fields and "Remember me" option
-- Form validation with error feedback
-- API integration: `POST /auth/login` → store token → redirect to dashboard
-- Professional branding with clinic name
-
-### 3. App Layout & Navigation
-- Sidebar navigation with icons for all 8 sections (Dashboard, Pets, Owners, Appointments, Billing, Inventory, Staff, Settings)
-- Top header with clinic name, user info, and logout button
-- Role-based menu visibility (staff can't see Billing, Inventory, Staff)
-- Collapsible sidebar with mobile-responsive hamburger menu
-- Protected routes that redirect unauthenticated users to login
+## Overview
+This plan introduces a **Medical Records** system based on the industry-standard **SOAP format** (Subjective, Objective, Assessment, Plan) used universally in veterinary practice. It also adds a **Vet Consultation View** -- the screen a doctor sees when a checked-in patient enters the room -- giving them everything they need at a glance without navigating away.
 
 ---
 
-## Phase 2: Core Pages & CRUD Operations (Days 3-5)
+## What are SOAP Notes?
 
-### 4. Dashboard (`/dashboard`)
-- 4 stat cards: Today's Appointments, Pending Invoices, Total Pets, Total Owners
-- Today's appointments list (scrollable, clickable)
-- Pending invoices section with quick actions
-- Low stock inventory alerts
-- Recent activity feed
-- Data from: `GET /clinic/dashboard`
+Every veterinary visit generates a structured clinical note:
 
-### 5. Pets Management (`/pets`, `/pets/:id`, `/pets/new`)
-- **List page**: Searchable/filterable table with columns (Name, Breed, Species, Owner, Status) + pagination
-- **Detail page**: Pet info card, quick actions (Schedule Appt, View Medical, Create Invoice), upcoming appointments
-- **Create/Edit form**: All fields (Name, Species, Breed, Gender, DOB, Owner dropdown, Weight, Microchip ID, Notes) with validation
-- **Delete**: Confirmation dialog
-- APIs: Full CRUD on `/pets`
+- **S - Subjective**: What the owner reports (symptoms, behavior changes, timeline)
+- **O - Objective**: What the vet measures (vitals, physical exam findings, lab results)
+- **A - Assessment**: The vet's diagnosis or differential diagnoses
+- **P - Plan**: Treatment prescribed, medications, follow-ups, client instructions
 
-### 6. Pet Owners Management (`/owners`, `/owners/:id`, `/owners/new`)
-- **List page**: Table with Name, Phone, Email, # Pets, Last Visit + search
-- **Detail page**: Contact info, list of owned pets (clickable), appointment & invoice history
-- **Create/Edit form**: Name, Phone, Email, Address with validation
-- APIs: Full CRUD on `/pet_parents`
-
-### 7. Appointments (`/appointments`, `/appointments/new`)
-- **Calendar/list view**: Week view with time slots, color-coded by vet
-- **Schedule form**: Pet dropdown, Vet dropdown, Date picker, Time picker (30-min slots), Reason, Notes
-- **Actions**: Reschedule, Mark Complete (`PUT /appointments/{id}/mark-complete`), Cancel
-- Filters: By Vet, Date Range, Status
-
-### 8. Billing & Invoices (`/billing`, `/billing/:id`, `/billing/new`)
-- **List page**: Table with Invoice #, Pet/Owner, Amount, Status badges (Paid ✅, Pending ⏳, Overdue 🔴), Due Date
-- **Invoice detail**: Full invoice with line items, totals, payment status
-- **Create form**: Pet selector, dynamic line items (add/remove), discount, auto-calculated totals
-- **Actions**: Mark Paid (modal with payment method), Send Reminder, Print
-- Admin-only access
-
-### 9. Inventory Management (`/inventory`, `/inventory/:id`)
-- **List page**: Table with Item Name, Category, Qty, Reorder Level, Status indicators (OK/LOW/OUT)
-- **Create/Edit form**: Name, Category, Quantity, Reorder Level, Unit Price, Supplier, Expiry Date
-- **Record Usage modal**: Quantity change, reason dropdown, notes
-- Admin-only access
-
-### 10. Staff Management (`/staff`)
-- **List page**: Table with Name, Role, Email, Phone, appointment counts
-- **Add/Edit form**: Name, Email, Phone, Role (vet/staff), Specialties
-- Admin-only access
+This is the global standard taught in every veterinary school and used by leading practice management systems (ezyVet, Vetspire, Shepherd, etc.).
 
 ---
 
-## Phase 3: Polish & Responsiveness (Days 6-7)
+## Data Points Captured Per Medical Record
 
-### 11. Mobile Responsive Design
-- All pages fully responsive across mobile, tablet, and desktop
-- Mobile-friendly navigation (bottom nav or hamburger menu)
-- Touch-friendly table actions and form inputs
-- Readable typography (16px minimum on mobile)
+### Core SOAP Fields
+| Field | Type | Purpose |
+|-------|------|---------|
+| Visit date | Date | When the exam occurred |
+| Linked appointment | Reference | Ties record to the appointment |
+| Attending vet | Reference | Who conducted the exam |
+| Chief complaint | Text | Reason for visit (from owner) |
 
-### 12. Production Polish
-- Skeleton loading states on all data-fetching pages
-- Toast notifications for all CRUD success/error actions
-- Form validation feedback on all forms
-- Error boundaries with user-friendly fallback UI
-- Empty states for tables with no data
-- Confirmation dialogs for all delete operations
+### Subjective (Owner-reported)
+| Field | Type | Purpose |
+|-------|------|---------|
+| Symptoms description | Text | What the owner observed |
+| Duration / onset | Text | How long symptoms have been present |
+| Appetite & behavior changes | Text | Eating, drinking, energy level |
+| Prior treatments attempted | Text | Home remedies or other vet visits |
 
-### 13. Settings Page (`/settings`)
-- User profile display (name, email, role)
-- Basic preferences
+### Objective (Vet-measured)
+| Field | Type | Purpose |
+|-------|------|---------|
+| Weight (kg) | Number | Current weight at visit |
+| Temperature (deg F) | Number | Normal range: 100-102.5 F for dogs, 100.5-102.5 F for cats |
+| Heart rate (bpm) | Number | Beats per minute |
+| Respiratory rate (breaths/min) | Number | Breaths per minute |
+| Body condition score (1-9) | Number | Standardized nutritional assessment |
+| Physical exam findings | Text | Vet's hands-on observations (eyes, ears, skin, teeth, etc.) |
+| Diagnostic results | Text | Lab work, X-rays, ultrasound findings |
+
+### Assessment
+| Field | Type | Purpose |
+|-------|------|---------|
+| Primary diagnosis | Text | Main condition identified |
+| Differential diagnoses | Text | Other possible conditions |
+| Severity | Select | Mild / Moderate / Severe / Critical |
+
+### Plan
+| Field | Type | Purpose |
+|-------|------|---------|
+| Prescriptions | Structured list | Medication name, dosage, frequency, duration |
+| Procedures performed | Text | Surgeries, dental cleaning, etc. |
+| Follow-up instructions | Text | Home care, dietary changes |
+| Next appointment recommendation | Text | Recheck timing |
+
+### Vaccination Tracker (Separate Tab)
+| Field | Type | Purpose |
+|-------|------|---------|
+| Vaccine name | Text | e.g., Rabies, DHPP, FVRCP |
+| Date administered | Date | When given |
+| Next due date | Date | When booster is needed |
+| Batch / lot number | Text | For regulatory traceability |
+| Administered by | Reference | Which vet gave it |
+
+---
+
+## What Gets Built
+
+### 1. New Types (`src/types/api.ts`)
+- `MedicalRecord` interface with all SOAP fields, vitals, prescriptions
+- `Vaccination` interface for the immunization tracker
+- `Prescription` sub-interface (medication, dosage, frequency, duration)
+
+### 2. Mock Data (`src/lib/mock-data.ts`)
+- 6-8 sample medical records across different pets (vaccination visits, sick visits, surgery follow-ups)
+- 5-6 vaccination records with due dates (some overdue for alert testing)
+
+### 3. Vet Consultation View (`src/pages/consultation/ConsultationView.tsx`)
+**Route**: `/consultation/:appointmentId` (accessible by `vet` and `admin` roles)
+
+This is the primary screen a vet sees after a patient is checked in. It displays:
+
+- **Header**: Pet name, species/breed, age, weight, owner name and phone (one-glance identification)
+- **Alert Banner**: Allergies, overdue vaccinations, special handling notes
+- **Left Column**: 
+  - Current appointment reason
+  - Vitals entry form (weight, temp, heart rate, respiratory rate, BCS)
+  - SOAP note form with clearly labeled sections
+- **Right Column**:
+  - Medical history timeline (past SOAP notes, most recent first)
+  - Vaccination status card (with overdue items highlighted)
+  - Active prescriptions
+
+A "Complete & Save" button saves the record and marks the appointment as completed.
+
+### 4. Medical Records Form (`src/pages/medical-records/MedicalRecordForm.tsx`)
+**Route**: `/pets/:petId/records/new` and `/pets/:petId/records/:recordId`
+
+Standalone form for creating/editing medical records outside of the consultation flow. Uses the same SOAP structure with guided sections and `useUnsavedChanges` protection.
+
+### 5. Pet Detail Enhancement (`src/pages/pets/PetDetail.tsx`)
+Add two new tabs/cards to the existing pet detail page:
+- **Medical History** card: Chronological list of SOAP records with expandable entries
+- **Vaccinations** card: Table of vaccines with status indicators (current / due soon / overdue)
+- Quick-action button: "Add Medical Record"
+
+### 6. Appointment Integration
+- On the Appointments Calendar, checked-in/scheduled appointments for the logged-in vet get a "Start Consultation" button that navigates to the consultation view
+- Completing a consultation auto-updates the appointment status to "completed"
+
+### 7. Sidebar Update (`src/components/AppSidebar.tsx`)
+- Add "Consultations" link under the Clinic group (visible to `vet` and `admin` roles) pointing to a filtered view of today's appointments for the logged-in vet
+
+---
+
+## File Changes Summary
+
+| File | Action | Description |
+|------|--------|-------------|
+| `src/types/api.ts` | Edit | Add `MedicalRecord`, `Vaccination`, `Prescription` interfaces |
+| `src/lib/mock-data.ts` | Edit | Add `mockMedicalRecords`, `mockVaccinations` data |
+| `src/pages/consultation/ConsultationView.tsx` | Create | Vet's patient encounter screen |
+| `src/pages/medical-records/MedicalRecordForm.tsx` | Create | SOAP note creation/edit form |
+| `src/pages/pets/PetDetail.tsx` | Edit | Add medical history and vaccination cards |
+| `src/pages/appointments/AppointmentsCalendar.tsx` | Edit | Add "Start Consultation" action for vets |
+| `src/components/AppSidebar.tsx` | Edit | Add Consultations nav item for vet/admin |
+| `src/App.tsx` | Edit | Register new routes with role protection |
+
+---
+
+## Guiding Principles
+- All new components use existing shadcn/ui primitives (`Card`, `Tabs`, `Badge`, `Button`, `Input`, `Textarea`, `Select`)
+- Currency in INR where applicable
+- Semantic Tailwind tokens only (no hardcoded colors)
+- `useUnsavedChanges` on all new forms
+- Toast confirmations on save/complete actions
+- Mobile-responsive layouts using the existing grid patterns
+- No existing functionality is modified or broken -- only additive changes
 

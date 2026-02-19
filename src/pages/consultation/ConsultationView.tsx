@@ -118,7 +118,7 @@ export default function ConsultationView() {
   const handleSave = () => {
     toast({ title: "Consultation saved", description: `${pet.name}'s record has been saved and appointment marked as completed.` });
     setIsDirty(false);
-    navigate("/appointments");
+    navigate("/consultations");
   };
 
   return (

@@ -207,7 +207,7 @@ export const mockMedicalRecords: MedicalRecord[] = [
     primary_diagnosis: "Healthy — routine checkup", severity: "mild",
     prescriptions: [{ medication: "Rabies Vaccine", dosage: "1 mL", frequency: "Single dose", duration: "Annual" }],
     procedures_performed: "Rabies vaccination administered", follow_up_instructions: "Monitor injection site for 48 hours. Next annual vaccination due Feb 2027.",
-    next_appointment_recommendation: "1 year", created_at: "2026-02-10T00:00:00Z", updated_at: "2026-02-10T00:00:00Z",
+    next_appointment_recommendation: "1 year", follow_up: { status: "not_needed" }, created_at: "2026-02-10T00:00:00Z", updated_at: "2026-02-10T00:00:00Z",
   },
   {
     id: "rec-002", pet_id: "pet-003", vet_id: "mock-vet-001", vet: mockUsers[1],
@@ -224,7 +224,7 @@ export const mockMedicalRecords: MedicalRecord[] = [
       { medication: "Apoquel", dosage: "16 mg", frequency: "Once daily", duration: "30 days" },
     ],
     follow_up_instructions: "Keep area clean and dry. Prevent scratching with e-collar if needed. Return in 2 weeks for recheck.",
-    next_appointment_recommendation: "2 weeks", created_at: "2026-01-20T00:00:00Z", updated_at: "2026-01-20T00:00:00Z",
+    next_appointment_recommendation: "2 weeks", follow_up: { status: "needed", urgency: "2_weeks", reason: "Recheck skin rash" }, created_at: "2026-01-20T00:00:00Z", updated_at: "2026-01-20T00:00:00Z",
   },
   {
     id: "rec-003", pet_id: "pet-004", vet_id: "mock-vet-002", vet: mockUsers[2],
@@ -239,7 +239,7 @@ export const mockMedicalRecords: MedicalRecord[] = [
     ],
     procedures_performed: "Dental scaling and polishing under sedation",
     follow_up_instructions: "Soft food for 3 days post-procedure. Begin daily dental treats. Brush teeth 3x weekly.",
-    next_appointment_recommendation: "6 months", created_at: "2026-01-15T00:00:00Z", updated_at: "2026-01-15T00:00:00Z",
+    next_appointment_recommendation: "6 months", follow_up: { status: "not_needed" }, created_at: "2026-01-15T00:00:00Z", updated_at: "2026-01-15T00:00:00Z",
   },
   {
     id: "rec-004", pet_id: "pet-008", vet_id: "mock-vet-002", vet: mockUsers[2],
@@ -255,7 +255,7 @@ export const mockMedicalRecords: MedicalRecord[] = [
       { medication: "Tramadol", dosage: "2 mg/kg", frequency: "Twice daily", duration: "5 days" },
     ],
     follow_up_instructions: "Strict rest for 2 weeks — leash walks only. No jumping or running. Apply cold compress 10 min twice daily.",
-    next_appointment_recommendation: "2 weeks", created_at: "2026-02-01T00:00:00Z", updated_at: "2026-02-01T00:00:00Z",
+    next_appointment_recommendation: "2 weeks", follow_up: { status: "needed", urgency: "2_weeks", reason: "Post-surgery recheck" }, created_at: "2026-02-01T00:00:00Z", updated_at: "2026-02-01T00:00:00Z",
   },
   {
     id: "rec-005", pet_id: "pet-009", vet_id: "mock-vet-002", vet: mockUsers[2],
@@ -271,7 +271,7 @@ export const mockMedicalRecords: MedicalRecord[] = [
       { medication: "L-Lysine supplement", dosage: "250 mg", frequency: "Once daily", duration: "30 days" },
     ],
     follow_up_instructions: "Keep eye clean with saline wipes. Monitor for worsening or green discharge.",
-    next_appointment_recommendation: "1 week if not improving", created_at: "2026-02-09T00:00:00Z", updated_at: "2026-02-09T00:00:00Z",
+    next_appointment_recommendation: "1 week if not improving", follow_up: { status: "conditional", urgency: "1_week", reason: "Eye infection recheck", condition_note: "Return if not improving or discharge turns green" }, created_at: "2026-02-09T00:00:00Z", updated_at: "2026-02-09T00:00:00Z",
   },
   {
     id: "rec-006", pet_id: "pet-005", vet_id: "mock-vet-001", vet: mockUsers[1],
@@ -283,7 +283,7 @@ export const mockMedicalRecords: MedicalRecord[] = [
     primary_diagnosis: "Healthy — overweight", severity: "mild",
     prescriptions: [],
     follow_up_instructions: "Reduce daily food intake by 15%. Increase daily walks to 30+ min. Recheck ALT in 3 months.",
-    next_appointment_recommendation: "3 months", created_at: "2026-02-10T00:00:00Z", updated_at: "2026-02-10T00:00:00Z",
+    next_appointment_recommendation: "3 months", follow_up: { status: "needed", urgency: "3_months", reason: "Recheck ALT levels and weight" }, created_at: "2026-02-10T00:00:00Z", updated_at: "2026-02-10T00:00:00Z",
   },
 ];
 

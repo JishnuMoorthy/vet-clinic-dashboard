@@ -21,7 +21,7 @@ import {
   setHours,
   setMinutes,
 } from "date-fns";
-import { mockAppointments, mockUsers } from "@/lib/mock-data";
+import { mockAppointments, mockUsers, mockMedicalRecords } from "@/lib/mock-data";
 import type { Appointment } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -44,7 +44,23 @@ import {
   XCircle,
   GripVertical,
   Stethoscope,
+  CalendarPlus,
+  AlertCircle,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+
+function getFollowUpForAppointment(aptId: string) {
+  return mockMedicalRecords.find(
+    (r) => r.appointment_id === aptId && r.follow_up && r.follow_up.status !== "not_needed"
+  );
+}
+
+const URGENCY_LABELS: Record<string, string> = {
+  "1_week": "Within 1 week",
+  "2_weeks": "Within 2 weeks",
+  "1_month": "Within 1 month",
+  "3_months": "Within 3 months",
+};
 
 type CalendarViewMode = "day" | "week" | "month";
 
@@ -886,29 +902,66 @@ function AppointmentDetailActions({
   }
 
   if (apt.status === "completed") {
+    const followUpRecord = getFollowUpForAppointment(apt.id);
     return (
-      <div className="flex flex-wrap gap-2 border-t pt-3">
-        {isAdmin && (
+      <div className="space-y-3 border-t pt-3">
+        {followUpRecord && followUpRecord.follow_up && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-sm font-semibold text-primary">
+                {followUpRecord.follow_up.status === "conditional" ? "Conditional Follow-up" : "Follow-up Requested"}
+              </span>
+            </div>
+            <div className="text-sm space-y-1 pl-6">
+              {followUpRecord.follow_up.urgency && (
+                <p><span className="text-muted-foreground">Urgency:</span> {URGENCY_LABELS[followUpRecord.follow_up.urgency] || followUpRecord.follow_up.urgency}</p>
+              )}
+              {followUpRecord.follow_up.reason && (
+                <p><span className="text-muted-foreground">Reason:</span> {followUpRecord.follow_up.reason}</p>
+              )}
+              {followUpRecord.follow_up.condition_note && (
+                <p><span className="text-muted-foreground">Condition:</span> {followUpRecord.follow_up.condition_note}</p>
+              )}
+              <p><span className="text-muted-foreground">Requested by:</span> {followUpRecord.vet?.full_name}</p>
+            </div>
+            {isAdmin && (
+              <Button
+                size="sm"
+                className="ml-6 mt-1"
+                onClick={() => {
+                  onClose();
+                  navigate(`/appointments/new?pet_id=${apt.pet_id}&reason=${encodeURIComponent("Follow-up: " + (followUpRecord.follow_up?.reason || apt.reason))}`);
+                }}
+              >
+                <CalendarPlus className="mr-1.5 h-3 w-3" /> Schedule Follow-up
+              </Button>
+            )}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {isAdmin && (
+            <Button
+              size="sm"
+              onClick={() => {
+                onClose();
+                navigate(`/billing/new?pet_id=${apt.pet_id}&reason=${encodeURIComponent(apt.reason)}`);
+              }}
+            >
+              Generate Invoice
+            </Button>
+          )}
           <Button
             size="sm"
+            variant="ghost"
             onClick={() => {
               onClose();
-              navigate(`/billing/new?pet_id=${apt.pet_id}&reason=${encodeURIComponent(apt.reason)}`);
+              navigate(`/pets/${apt.pet_id}`);
             }}
           >
-            Generate Invoice
+            <PawPrint className="mr-1.5 h-3 w-3" /> View Pet
           </Button>
-        )}
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            onClose();
-            navigate(`/pets/${apt.pet_id}`);
-          }}
-        >
-          <PawPrint className="mr-1.5 h-3 w-3" /> View Pet
-        </Button>
+        </div>
       </div>
     );
   }

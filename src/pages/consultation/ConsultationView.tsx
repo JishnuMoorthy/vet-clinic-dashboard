@@ -3,6 +3,7 @@ import { useState } from "react";
 import { format, parseISO, differenceInYears, differenceInMonths } from "date-fns";
 import { mockAppointments, mockMedicalRecords, mockVaccinations, mockPets } from "@/lib/mock-data";
 import type { MedicalRecord, Prescription } from "@/types/api";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -74,8 +75,13 @@ export default function ConsultationView() {
     severity: "mild" as MedicalRecord["severity"],
     procedures_performed: "",
     follow_up_instructions: "",
-    next_appointment_recommendation: "",
   });
+  const [followUp, setFollowUp] = useState<{
+    status: "needed" | "not_needed" | "conditional";
+    urgency: string;
+    reason: string;
+    condition_note: string;
+  }>({ status: "not_needed", urgency: "", reason: "", condition_note: "" });
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
 
   useUnsavedChanges(isDirty);
@@ -261,7 +267,61 @@ export default function ConsultationView() {
                 </div>
                 <div><Label className="text-xs">Procedures Performed</Label><Textarea value={soap.procedures_performed} onChange={(e) => updateSoap("procedures_performed", e.target.value)} className="mt-1" rows={2} /></div>
                 <div><Label className="text-xs">Follow-up Instructions</Label><Textarea value={soap.follow_up_instructions} onChange={(e) => updateSoap("follow_up_instructions", e.target.value)} className="mt-1" rows={2} /></div>
-                <div><Label className="text-xs">Next Appointment</Label><Input value={soap.next_appointment_recommendation} onChange={(e) => updateSoap("next_appointment_recommendation", e.target.value)} className="mt-1" /></div>
+
+                {/* Follow-up Appointment */}
+                <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4">
+                  <Label className="text-xs font-semibold">Follow-up Appointment</Label>
+                  <ToggleGroup
+                    type="single"
+                    value={followUp.status}
+                    onValueChange={(v) => {
+                      if (v) {
+                        setFollowUp((prev) => ({ ...prev, status: v as typeof prev.status }));
+                        setIsDirty(true);
+                      }
+                    }}
+                    className="justify-start"
+                  >
+                    <ToggleGroupItem value="needed" className="rounded-full text-xs px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+                      Follow-up Needed
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="not_needed" className="rounded-full text-xs px-3 data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground">
+                      Not Needed
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="conditional" className="rounded-full text-xs px-3 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground">
+                      Conditional
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+
+                  {(followUp.status === "needed" || followUp.status === "conditional") && (
+                    <div className="space-y-3 pt-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs">Urgency</Label>
+                          <Select value={followUp.urgency} onValueChange={(v) => { setFollowUp((prev) => ({ ...prev, urgency: v })); setIsDirty(true); }}>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder="Select timeframe" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1_week">Within 1 week</SelectItem>
+                              <SelectItem value="2_weeks">Within 2 weeks</SelectItem>
+                              <SelectItem value="1_month">Within 1 month</SelectItem>
+                              <SelectItem value="3_months">Within 3 months</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Reason for Follow-up</Label>
+                          <Input value={followUp.reason} onChange={(e) => { setFollowUp((prev) => ({ ...prev, reason: e.target.value })); setIsDirty(true); }} placeholder="e.g. Recheck skin rash" className="mt-1" />
+                        </div>
+                      </div>
+                      {followUp.status === "conditional" && (
+                        <div>
+                          <Label className="text-xs">Condition Note</Label>
+                          <Input value={followUp.condition_note} onChange={(e) => { setFollowUp((prev) => ({ ...prev, condition_note: e.target.value })); setIsDirty(true); }} placeholder="e.g. Return if symptoms worsen" className="mt-1" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

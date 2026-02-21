@@ -152,6 +152,12 @@ export interface MedicalRecord {
   procedures_performed?: string;
   follow_up_instructions?: string;
   next_appointment_recommendation?: string;
+  follow_up?: {
+    status: "needed" | "not_needed" | "conditional";
+    urgency?: "1_week" | "2_weeks" | "1_month" | "3_months";
+    reason?: string;
+    condition_note?: string;
+  };
   created_at: string;
   updated_at: string;
 }

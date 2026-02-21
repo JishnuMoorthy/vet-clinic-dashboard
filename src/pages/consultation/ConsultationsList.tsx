@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, parseISO, isToday } from "date-fns";
-import { mockAppointments, mockUsers } from "@/lib/mock-data";
+import { mockAppointments, mockUsers, mockMedicalRecords } from "@/lib/mock-data";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
   Stethoscope,
   FileText,
   Calendar,
+  CalendarPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -136,6 +137,17 @@ export default function ConsultationsList() {
                   <div className="flex items-center gap-2 shrink-0 ml-4">
                     <StatusBadge status={apt.status} />
 
+                    {isCompleted && (() => {
+                      const rec = mockMedicalRecords.find(
+                        (r) => r.appointment_id === apt.id && r.follow_up && r.follow_up.status !== "not_needed"
+                      );
+                      return rec ? (
+                        <Badge variant="outline" className="text-[10px] border-primary/50 text-primary gap-1">
+                          <CalendarPlus className="h-3 w-3" />
+                          Follow-up
+                        </Badge>
+                      ) : null;
+                    })()}
                     {isScheduled && (
                       <Button
                         size="sm"

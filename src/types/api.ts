@@ -33,6 +33,7 @@ export interface Pet {
   status: string;
   owner_id: string;
   owner?: PetOwner;
+  photo_url?: string;
   created_at: string;
   updated_at: string;
 }

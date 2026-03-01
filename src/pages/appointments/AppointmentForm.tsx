@@ -35,18 +35,24 @@ export default function AppointmentForm() {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
 
-  const prefillDate = searchParams.get("date") || "";
-  const prefillTime = searchParams.get("time") || "";
-  const prefillPetId = searchParams.get("pet_id") || "";
-  const prefillReason = searchParams.get("reason") || "";
+  const editId = searchParams.get("edit") || "";
+  const editingApt = editId ? mockAppointments.find((a) => a.id === editId) : null;
+  const isEdit = !!editingApt;
+
+  const prefillDate = editingApt?.date || searchParams.get("date") || "";
+  const prefillTime = editingApt?.time || searchParams.get("time") || "";
+  const prefillPetId = editingApt?.pet_id || searchParams.get("pet_id") || "";
+  const prefillReason = editingApt?.reason || searchParams.get("reason") || "";
+  const prefillVetId = editingApt?.vet_id || "";
+  const prefillNotes = editingApt?.notes || "";
 
   const [form, setForm] = useState({
     pet_id: prefillPetId,
-    vet_id: "",
+    vet_id: prefillVetId,
     date: prefillDate,
     time: prefillTime,
     reason: prefillReason,
-    notes: "",
+    notes: prefillNotes,
   });
 
   const [petSearch, setPetSearch] = useState("");
@@ -80,14 +86,15 @@ export default function AppointmentForm() {
         a.vet_id === form.vet_id &&
         a.date === form.date &&
         a.time === form.time &&
-        a.status === "scheduled"
+        a.status === "scheduled" &&
+        a.id !== editId
     );
     if (conflict) {
       const vetName = vets.find((v) => v.id === form.vet_id)?.full_name || "This vet";
       return `⚠ ${vetName} already has "${conflict.pet?.name} — ${conflict.reason}" at ${form.time} on this date.`;
     }
     return null;
-  }, [form.vet_id, form.date, form.time]);
+  }, [form.vet_id, form.date, form.time, editId]);
 
   const filteredPets = petSearch
     ? mockPets.filter(
@@ -109,10 +116,37 @@ export default function AppointmentForm() {
     }
     setIsSaving(true);
     setSubmitted(true);
-    toast({
-      title: "Appointment scheduled!",
-      description: "The visit has been added to the calendar.",
-    });
+
+    if (isEdit && editingApt) {
+      // Update existing appointment in-place
+      const idx = mockAppointments.findIndex((a) => a.id === editId);
+      if (idx !== -1) {
+        const pet = mockPets.find((p) => p.id === form.pet_id);
+        const vet = mockUsers.find((u) => u.id === form.vet_id);
+        mockAppointments[idx] = {
+          ...editingApt,
+          pet_id: form.pet_id,
+          pet: pet || editingApt.pet,
+          vet_id: form.vet_id,
+          vet: vet || editingApt.vet,
+          date: form.date,
+          time: form.time,
+          reason: form.reason,
+          notes: form.notes || undefined,
+          updated_at: new Date().toISOString(),
+        };
+      }
+      toast({
+        title: "Appointment updated!",
+        description: "The changes have been saved.",
+      });
+    } else {
+      toast({
+        title: "Appointment scheduled!",
+        description: "The visit has been added to the calendar.",
+      });
+    }
+
     setIsSaving(false);
     navigate("/appointments");
   };
@@ -120,8 +154,8 @@ export default function AppointmentForm() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Schedule Appointment"
-        subtitle="Book a visit for a pet. Pick a vet, date, and time slot."
+        title={isEdit ? "Edit Appointment" : "Schedule Appointment"}
+        subtitle={isEdit ? "Update the appointment details below." : "Book a visit for a pet. Pick a vet, date, and time slot."}
         backTo="/appointments"
         helpText="Time slots are in 30-minute intervals between 9 AM and 6 PM. Conflicts are detected automatically."
       />
@@ -239,7 +273,7 @@ export default function AppointmentForm() {
             <div className="flex gap-2 sm:col-span-2 pt-2">
               <Button type="submit" disabled={isSaving}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                {isSaving ? "Scheduling..." : "Schedule Appointment"}
+                {isSaving ? "Saving..." : isEdit ? "Save Changes" : "Schedule Appointment"}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/appointments")}>Cancel</Button>
             </div>

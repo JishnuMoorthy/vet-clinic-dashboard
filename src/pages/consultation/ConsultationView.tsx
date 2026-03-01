@@ -206,7 +206,10 @@ export default function ConsultationView() {
       {/* Patient ID Band */}
       <Card className="border-primary/30 bg-primary/5">
         <CardContent className="p-4">
-          <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-sm">
+            {pet.photo_url && (
+              <img src={pet.photo_url} alt={pet.name} className="h-10 w-10 rounded-full object-cover border border-primary/20" />
+            )}
             <div><span className="text-muted-foreground">Patient:</span> <span className="font-semibold">{pet.name}</span></div>
             <div><span className="text-muted-foreground">Species:</span> {pet.species} · {pet.breed || "Mixed"}</div>
             <div><span className="text-muted-foreground">Age:</span> {petAge(pet.date_of_birth)}</div>

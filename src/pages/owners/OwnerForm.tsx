@@ -24,6 +24,7 @@ export default function OwnerForm() {
   });
 
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isSaving, setIsSaving] = useState(false);
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -38,10 +39,12 @@ export default function OwnerForm() {
       toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
+    setIsSaving(true);
     toast({
       title: isEdit ? `${form.full_name} updated` : `${form.full_name} registered!`,
       description: isEdit ? "Owner record saved." : "Pet parent has been added.",
     });
+    setIsSaving(false);
     navigate("/owners");
   };
 
@@ -88,9 +91,9 @@ export default function OwnerForm() {
               <Input value={form.address} onChange={(e) => update("address", e.target.value)} placeholder="e.g., 12 MG Road, Bangalore" />
             </div>
             <div className="flex gap-2 sm:col-span-2 pt-2">
-              <Button type="submit">
+              <Button type="submit" disabled={isSaving}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                {isEdit ? "Save Changes" : "Register Owner"}
+                {isSaving ? "Saving..." : isEdit ? "Save Changes" : "Register Owner"}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/owners")}>Cancel</Button>
             </div>

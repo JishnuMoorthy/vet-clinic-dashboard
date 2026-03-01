@@ -22,6 +22,7 @@ import {
   setMinutes,
 } from "date-fns";
 import { mockAppointments, mockUsers, mockMedicalRecords } from "@/lib/mock-data";
+import { WalkInModal } from "@/components/WalkInModal";
 import type { Appointment } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -127,6 +128,7 @@ export default function AppointmentsCalendar() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([...mockAppointments]);
   const [showList, setShowList] = useState(false);
+  const [showWalkIn, setShowWalkIn] = useState(false);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const timeGridRef = useRef<HTMLDivElement>(null);
 
@@ -234,6 +236,9 @@ export default function AppointmentsCalendar() {
           <LayoutList className="h-4 w-4" />
         </Button>
 
+        <Button size="sm" variant="outline" onClick={() => setShowWalkIn(true)}>
+          <Plus className="mr-1 h-3 w-3" /> Walk-In
+        </Button>
         <Button size="sm" onClick={() => navigate("/appointments/new")}>
           <Plus className="mr-1 h-3 w-3" /> New
         </Button>
@@ -367,6 +372,7 @@ export default function AppointmentsCalendar() {
           )}
         </DialogContent>
       </Dialog>
+      <WalkInModal open={showWalkIn} onOpenChange={setShowWalkIn} onCreated={() => setAppointments([...mockAppointments])} />
     </div>
   );
 }

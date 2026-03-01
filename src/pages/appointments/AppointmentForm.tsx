@@ -37,23 +37,26 @@ export default function AppointmentForm() {
 
   const prefillDate = searchParams.get("date") || "";
   const prefillTime = searchParams.get("time") || "";
+  const prefillPetId = searchParams.get("pet_id") || "";
+  const prefillReason = searchParams.get("reason") || "";
 
   const [form, setForm] = useState({
-    pet_id: "",
+    pet_id: prefillPetId,
     vet_id: "",
     date: prefillDate,
     time: prefillTime,
-    reason: "",
+    reason: prefillReason,
     notes: "",
   });
 
   const [petSearch, setPetSearch] = useState("");
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const isDirty = Object.values(form).some((v) => v !== "" && v !== prefillDate && v !== prefillTime);
+  const isDirty = Object.values(form).some((v) => v !== "" && v !== prefillDate && v !== prefillTime && v !== prefillPetId && v !== prefillReason);
   useUnsavedChanges(isDirty && !submitted);
 
   const requiredFields = ["pet_id", "vet_id", "date", "time", "reason"] as const;
@@ -104,11 +107,13 @@ export default function AppointmentForm() {
       toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
+    setIsSaving(true);
     setSubmitted(true);
     toast({
       title: "Appointment scheduled!",
       description: "The visit has been added to the calendar.",
     });
+    setIsSaving(false);
     navigate("/appointments");
   };
 
@@ -232,9 +237,9 @@ export default function AppointmentForm() {
               <p className="text-[11px] text-muted-foreground">Optional — visible to the assigned vet</p>
             </div>
             <div className="flex gap-2 sm:col-span-2 pt-2">
-              <Button type="submit">
+              <Button type="submit" disabled={isSaving}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                Schedule Appointment
+                {isSaving ? "Scheduling..." : "Schedule Appointment"}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/appointments")}>Cancel</Button>
             </div>

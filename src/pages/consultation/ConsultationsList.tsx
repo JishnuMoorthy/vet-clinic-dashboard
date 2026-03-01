@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/StatusBadge";
+import { WalkInModal } from "@/components/WalkInModal";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,8 @@ import {
   FileText,
   Calendar,
   CalendarPlus,
+  Phone,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +39,8 @@ export default function ConsultationsList() {
   const { user, hasRole } = useAuth();
   const isAdmin = hasRole(["admin"]);
   const [vetFilter, setVetFilter] = useState<string>("all");
+  const [showWalkIn, setShowWalkIn] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const vets = mockUsers.filter((u) => u.role === "vet");
 
@@ -50,30 +55,36 @@ export default function ConsultationsList() {
     }
 
     return apts.sort((a, b) => a.time.localeCompare(b.time));
-  }, [isAdmin, user, vetFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, user, vetFilter, refreshKey]);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <PageHeader
-          title="Today's Consultations"
+          title="Today's Patients"
           subtitle={`${format(new Date(), "EEEE, MMMM d, yyyy")} — ${todaysAppointments.length} patient${todaysAppointments.length !== 1 ? "s" : ""}`}
         />
-        {isAdmin && (
-          <Select value={vetFilter} onValueChange={setVetFilter}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Filter by vet" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Veterinarians</SelectItem>
-              {vets.map((v) => (
-                <SelectItem key={v.id} value={v.id}>
-                  {v.full_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowWalkIn(true)}>
+            <UserPlus className="mr-1.5 h-3 w-3" /> Walk-In
+          </Button>
+          {isAdmin && (
+            <Select value={vetFilter} onValueChange={setVetFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Filter by vet" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Veterinarians</SelectItem>
+                {vets.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
 
       {todaysAppointments.length === 0 ? (
@@ -123,6 +134,12 @@ export default function ConsultationsList() {
                           <User className="h-3 w-3" />
                           {apt.pet?.owner?.full_name}
                         </span>
+                        {apt.pet?.owner?.phone && (
+                          <a href={`tel:${apt.pet.owner.phone}`} className="flex items-center gap-1 hover:text-primary transition-colors">
+                            <Phone className="h-3 w-3" />
+                            {apt.pet.owner.phone}
+                          </a>
+                        )}
                         {isAdmin && (
                           <span className="flex items-center gap-1">
                             <Stethoscope className="h-3 w-3" />
@@ -175,6 +192,8 @@ export default function ConsultationsList() {
           })}
         </div>
       )}
+
+      <WalkInModal open={showWalkIn} onOpenChange={setShowWalkIn} onCreated={() => setRefreshKey((k) => k + 1)} />
     </div>
   );
 }

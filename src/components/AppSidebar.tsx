@@ -98,8 +98,8 @@ export function AppSidebar() {
                     >
                       <Stethoscope className="h-4 w-4" />
                       <div className="flex flex-col">
-                        <span className="text-sm">Consultations</span>
-                        <span className="text-[10px] opacity-50 leading-tight">Today's patients</span>
+                        <span className="text-sm">Today's Patients</span>
+                        <span className="text-[10px] opacity-50 leading-tight">Today's patient queue</span>
                       </div>
                     </NavLink>
                   </SidebarMenuButton>

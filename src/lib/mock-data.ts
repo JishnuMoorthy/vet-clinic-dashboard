@@ -93,9 +93,9 @@ export function mockLogin(email: string, password: string): AuthResponse {
   };
 }
 
-// ============= Mock Pet Owners =============
+// ============= Mock Pet Owners (mutable) =============
 
-export const mockOwners: PetOwner[] = [
+export let mockOwners: PetOwner[] = [
   { id: "owner-001", full_name: "Meera Kapoor", email: "meera@gmail.com", phone: "+91-9876543210", address: "12 MG Road, Bangalore", pets_count: 2, last_visit: "2026-02-10", created_at: "2025-03-01T00:00:00Z", updated_at: "2026-02-10T00:00:00Z" },
   { id: "owner-002", full_name: "Arjun Reddy", email: "arjun.r@gmail.com", phone: "+91-9876543211", address: "45 Jubilee Hills, Hyderabad", pets_count: 1, last_visit: "2026-02-08", created_at: "2025-04-15T00:00:00Z", updated_at: "2026-02-08T00:00:00Z" },
   { id: "owner-003", full_name: "Sneha Iyer", email: "sneha.i@outlook.com", phone: "+91-9876543212", address: "78 Anna Nagar, Chennai", pets_count: 3, last_visit: "2026-02-12", created_at: "2025-01-20T00:00:00Z", updated_at: "2026-02-12T00:00:00Z" },
@@ -104,9 +104,13 @@ export const mockOwners: PetOwner[] = [
   { id: "owner-006", full_name: "Deepak Joshi", email: "deepak.j@gmail.com", phone: "+91-9876543215", address: "90 Baner Road, Pune", pets_count: 1, last_visit: "2026-02-05", created_at: "2025-07-15T00:00:00Z", updated_at: "2026-02-05T00:00:00Z" },
 ];
 
-// ============= Mock Pets =============
+export function addOwner(owner: PetOwner) {
+  mockOwners = [...mockOwners, owner];
+}
 
-export const mockPets: Pet[] = [
+// ============= Mock Pets (mutable) =============
+
+export let mockPets: Pet[] = [
   { id: "pet-001", name: "Bruno", species: "Dog", breed: "Golden Retriever", gender: "Male", date_of_birth: "2022-03-15", weight: 32, microchip_id: "MC-001234", notes: "Friendly, loves treats", status: "active", owner_id: "owner-001", owner: mockOwners[0], created_at: "2025-03-01T00:00:00Z", updated_at: "2026-02-10T00:00:00Z" },
   { id: "pet-002", name: "Luna", species: "Cat", breed: "Persian", gender: "Female", date_of_birth: "2023-07-20", weight: 4.5, microchip_id: "MC-001235", status: "active", owner_id: "owner-001", owner: mockOwners[0], created_at: "2025-03-01T00:00:00Z", updated_at: "2026-01-15T00:00:00Z" },
   { id: "pet-003", name: "Rocky", species: "Dog", breed: "German Shepherd", gender: "Male", date_of_birth: "2021-11-08", weight: 38, microchip_id: "MC-001236", notes: "Anxious during checkups", status: "active", owner_id: "owner-002", owner: mockOwners[1], created_at: "2025-04-15T00:00:00Z", updated_at: "2026-02-08T00:00:00Z" },
@@ -119,12 +123,16 @@ export const mockPets: Pet[] = [
   { id: "pet-010", name: "Daisy", species: "Dog", breed: "Pomeranian", gender: "Female", date_of_birth: "2023-08-14", weight: 3.5, microchip_id: "MC-001243", status: "active", owner_id: "owner-006", owner: mockOwners[5], created_at: "2025-07-15T00:00:00Z", updated_at: "2026-02-05T00:00:00Z" },
 ];
 
-// ============= Mock Appointments =============
+export function addPet(pet: Pet) {
+  mockPets = [...mockPets, pet];
+}
+
+// ============= Mock Appointments (mutable) =============
 
 const now = new Date();
 const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-export const mockAppointments: Appointment[] = [
+export let mockAppointments: Appointment[] = [
   { id: "apt-001", pet_id: "pet-001", pet: mockPets[0], vet_id: "mock-vet-001", vet: mockUsers[1], date: today, time: "09:00", reason: "Annual vaccination", status: "completed", created_at: "2026-02-01T00:00:00Z", updated_at: "2026-02-01T00:00:00Z" },
   { id: "apt-002", pet_id: "pet-003", pet: mockPets[2], vet_id: "mock-vet-001", vet: mockUsers[1], date: today, time: "10:30", reason: "Skin allergy follow-up", notes: "Check rash on left ear", status: "scheduled", created_at: "2026-02-05T00:00:00Z", updated_at: "2026-02-05T00:00:00Z" },
   { id: "apt-003", pet_id: "pet-004", pet: mockPets[3], vet_id: "mock-vet-002", vet: mockUsers[2], date: today, time: "11:00", reason: "Dental checkup", status: "scheduled", created_at: "2026-02-08T00:00:00Z", updated_at: "2026-02-08T00:00:00Z" },
@@ -136,6 +144,10 @@ export const mockAppointments: Appointment[] = [
   { id: "apt-009", pet_id: "pet-009", pet: mockPets[8], vet_id: "mock-vet-002", vet: mockUsers[2], date: "2026-02-09", time: "14:30", reason: "Eye infection", status: "completed", created_at: "2026-02-05T00:00:00Z", updated_at: "2026-02-09T00:00:00Z" },
   { id: "apt-010", pet_id: "pet-006", pet: mockPets[5], vet_id: "mock-vet-001", vet: mockUsers[1], date: "2026-02-08", time: "16:00", reason: "Deworming", status: "cancelled", created_at: "2026-02-01T00:00:00Z", updated_at: "2026-02-07T00:00:00Z" },
 ];
+
+export function addAppointment(apt: Appointment) {
+  mockAppointments = [...mockAppointments, apt];
+}
 
 // ============= Mock Invoices =============
 

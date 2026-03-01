@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useState } from "react";
-import { mockPets, mockOwners, mockAppointments } from "@/lib/mock-data";
+import { useState, useEffect, useRef } from "react";
+import { mockPets, mockOwners, mockAppointments, mockInvoices } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { logAction } from "@/lib/audit-log";
+import { useAuth } from "@/contexts/AuthContext";
 
 import { Plus, Trash2, CheckCircle2 } from "lucide-react";
 
@@ -18,27 +20,67 @@ interface LineItem {
   unit_price: number;
 }
 
+const DRAFT_KEY = "draft_invoice";
+
 export default function InvoiceForm() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
 
-  // Pre-fill from completed appointment
+  // Pre-fill from completed appointment or clone
   const prefillPetId = searchParams.get("pet_id") || "";
   const prefillReason = searchParams.get("reason") || "";
+  const cloneFrom = searchParams.get("clone_from") || "";
 
-  const [petId, setPetId] = useState(prefillPetId);
-  const [discount, setDiscount] = useState("");
+  const cloneSource = cloneFrom ? mockInvoices.find((i) => i.id === cloneFrom) : null;
+
+  const [petId, setPetId] = useState(cloneSource?.pet_id || prefillPetId);
+  const [discount, setDiscount] = useState(cloneSource?.discount?.toString() || "");
   const [dueDate, setDueDate] = useState("");
-  const [items, setItems] = useState<LineItem[]>([
-    { description: prefillReason ? `${prefillReason} — Consultation` : "", quantity: 1, unit_price: prefillReason ? 500 : 0 },
-  ]);
+  const [items, setItems] = useState<LineItem[]>(() => {
+    if (cloneSource) {
+      return cloneSource.line_items.map((li) => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price }));
+    }
+    return [{ description: prefillReason ? `${prefillReason} — Consultation` : "", quantity: 1, unit_price: prefillReason ? 500 : 0 }];
+  });
   const [submitted, setSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const selectedPet = mockPets.find((p) => p.id === petId);
 
   const isDirty = !!petId || !!dueDate || items.some((li) => li.description !== "" || li.unit_price > 0);
   useUnsavedChanges(isDirty && !submitted);
+
+  // Autosave draft
+  const isRestored = useRef(false);
+  useEffect(() => {
+    if (isRestored.current || cloneFrom) return;
+    const saved = localStorage.getItem(DRAFT_KEY);
+    if (saved) {
+      try {
+        const draft = JSON.parse(saved);
+        if (draft.petId) setPetId(draft.petId);
+        if (draft.discount) setDiscount(draft.discount);
+        if (draft.dueDate) setDueDate(draft.dueDate);
+        if (draft.items) setItems(draft.items);
+        toast({ title: "Draft restored" });
+      } catch { /* ignore */ }
+    }
+    isRestored.current = true;
+  }, [cloneFrom, toast]);
+
+  useEffect(() => {
+    if (cloneFrom) return;
+    const t = setTimeout(() => {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ petId, discount, dueDate, items }));
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [petId, discount, dueDate, items, cloneFrom]);
+
+  if (cloneSource) {
+    logAction({ actor_id: user?.id || "unknown", action_type: "repeat_invoice", entity_type: "invoice", entity_id: cloneSource.id });
+  }
 
   const addItem = () => setItems((prev) => [...prev, { description: "", quantity: 1, unit_price: 0 }]);
   const removeItem = (i: number) => setItems((prev) => prev.filter((_, idx) => idx !== i));
@@ -55,18 +97,21 @@ export default function InvoiceForm() {
       toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
+    setIsSaving(true);
+    localStorage.removeItem(DRAFT_KEY);
     toast({
       title: "Invoice created!",
       description: `₹${Math.max(0, total).toLocaleString()} billed to ${selectedPet?.owner?.full_name}`,
     });
+    setIsSaving(false);
     navigate("/billing");
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="New Invoice"
-        subtitle={prefillReason ? `Billing for: ${prefillReason}` : "Create a bill for services rendered"}
+        title={cloneSource ? "Repeat Invoice" : "New Invoice"}
+        subtitle={cloneSource ? `Cloned from ${cloneSource.invoice_number}` : prefillReason ? `Billing for: ${prefillReason}` : "Create a bill for services rendered"}
         backTo="/billing"
         helpText="Select a pet first — the owner fills in automatically. Add line items for each service."
       />
@@ -153,16 +198,15 @@ export default function InvoiceForm() {
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit">
+              <Button type="submit" disabled={isSaving}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                Create Invoice
+                {isSaving ? "Creating..." : "Create Invoice"}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/billing")}>Cancel</Button>
             </div>
           </form>
         </CardContent>
       </Card>
-      
     </div>
   );
 }

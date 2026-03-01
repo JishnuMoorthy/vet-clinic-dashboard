@@ -1,15 +1,20 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { format } from "date-fns";
 import { mockPets, mockOwners } from "@/lib/mock-data";
+import { InlineOwnerModal } from "@/components/InlineOwnerModal";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, CalendarIcon, UserPlus, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function PetForm() {
   const { id } = useParams();
@@ -31,12 +36,28 @@ export default function PetForm() {
   });
 
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [showOwnerModal, setShowOwnerModal] = useState(false);
+  const [ownerSearch, setOwnerSearch] = useState("");
+  const [dobDate, setDobDate] = useState<Date | undefined>(
+    existing?.date_of_birth ? new Date(existing.date_of_birth) : undefined
+  );
+  const [dobMonth, setDobMonth] = useState<Date>(dobDate || new Date());
+  const [isSaving, setIsSaving] = useState(false);
+
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const errors: Record<string, string> = {};
   if (!form.name && touched.name) errors.name = "Please enter the pet's name";
   if (!form.owner_id && touched.owner_id) errors.owner_id = "Please select who owns this pet";
+
+  const filteredOwners = ownerSearch
+    ? mockOwners.filter((o) => o.full_name.toLowerCase().includes(ownerSearch.toLowerCase()) || o.phone.includes(ownerSearch))
+    : mockOwners;
+
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: currentYear - 2004 }, (_, i) => currentYear - i);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,10 +66,12 @@ export default function PetForm() {
       toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
+    setIsSaving(true);
     toast({
       title: isEdit ? `${form.name} updated successfully` : `${form.name} registered!`,
       description: isEdit ? "Pet record has been saved." : "The pet has been added to your clinic.",
     });
+    setIsSaving(false);
     navigate("/pets");
   };
 
@@ -101,9 +124,62 @@ export default function PetForm() {
                 </SelectContent>
               </Select>
             </div>
+            {/* DOB with year/month dropdowns */}
             <div className="space-y-1.5">
               <Label>Date of Birth</Label>
-              <Input type="date" value={form.date_of_birth} onChange={(e) => update("date_of_birth", e.target.value)} />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dobDate && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dobDate ? format(dobDate, "PPP") : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="flex gap-2 p-3 pb-0">
+                    <Select
+                      value={String(dobMonth.getFullYear())}
+                      onValueChange={(v) => {
+                        const d = new Date(dobMonth);
+                        d.setFullYear(parseInt(v));
+                        setDobMonth(d);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs w-[80px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={String(dobMonth.getMonth())}
+                      onValueChange={(v) => {
+                        const d = new Date(dobMonth);
+                        d.setMonth(parseInt(v));
+                        setDobMonth(d);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs w-[80px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {months.map((m, i) => <SelectItem key={i} value={String(i)}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Calendar
+                    mode="single"
+                    selected={dobDate}
+                    onSelect={(d) => {
+                      setDobDate(d);
+                      if (d) {
+                        update("date_of_birth", format(d, "yyyy-MM-dd"));
+                        setDobMonth(d);
+                      }
+                    }}
+                    month={dobMonth}
+                    onMonthChange={setDobMonth}
+                    disabled={(date) => date > new Date()}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
               <p className="text-[11px] text-muted-foreground">Approximate is fine</p>
             </div>
             <div className="space-y-1.5">
@@ -114,14 +190,28 @@ export default function PetForm() {
               <Label>Microchip ID</Label>
               <Input value={form.microchip_id} onChange={(e) => update("microchip_id", e.target.value)} placeholder="e.g., MC-001234" />
             </div>
+            {/* Searchable Owner Select */}
             <div className="space-y-1.5">
               <Label className={errors.owner_id ? "text-destructive" : ""}>Owner *</Label>
-              <Select value={form.owner_id} onValueChange={(v) => { update("owner_id", v); markTouched("owner_id"); }}>
+              <Select value={form.owner_id} onValueChange={(v) => { if (v === "__new__") { setShowOwnerModal(true); return; } update("owner_id", v); markTouched("owner_id"); }}>
                 <SelectTrigger className={errors.owner_id ? "border-destructive" : ""}><SelectValue placeholder="Select owner" /></SelectTrigger>
                 <SelectContent>
-                  {mockOwners.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>{o.full_name}</SelectItem>
+                  <div className="px-2 pb-2">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input placeholder="Search owners..." value={ownerSearch} onChange={(e) => setOwnerSearch(e.target.value)} className="h-8 pl-7 text-sm" onClick={(e) => e.stopPropagation()} />
+                    </div>
+                  </div>
+                  {filteredOwners.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>{o.full_name} · {o.phone}</SelectItem>
                   ))}
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 w-full px-2 py-2 text-sm text-primary hover:bg-muted/50 border-t mt-1"
+                    onClick={(e) => { e.stopPropagation(); setShowOwnerModal(true); }}
+                  >
+                    <UserPlus className="h-3.5 w-3.5" /> Add New Owner
+                  </button>
                 </SelectContent>
               </Select>
               {errors.owner_id && <p className="text-xs text-destructive">{errors.owner_id}</p>}
@@ -131,15 +221,24 @@ export default function PetForm() {
               <Textarea value={form.notes} onChange={(e) => update("notes", e.target.value)} placeholder="Any allergies, temperament, or special needs..." />
             </div>
             <div className="flex gap-2 sm:col-span-2 pt-2">
-              <Button type="submit">
+              <Button type="submit" disabled={isSaving}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                {isEdit ? "Save Changes" : "Register Pet"}
+                {isSaving ? "Saving..." : isEdit ? "Save Changes" : "Register Pet"}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/pets")}>Cancel</Button>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      <InlineOwnerModal
+        open={showOwnerModal}
+        onOpenChange={setShowOwnerModal}
+        onCreated={(ownerId) => {
+          update("owner_id", ownerId);
+          markTouched("owner_id");
+        }}
+      />
     </div>
   );
 }

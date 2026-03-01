@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format, parseISO, differenceInYears, differenceInMonths } from "date-fns";
 import { mockAppointments, mockMedicalRecords, mockVaccinations, mockPets } from "@/lib/mock-data";
 import type { MedicalRecord, Prescription } from "@/types/api";
@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { logAction } from "@/lib/audit-log";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,8 @@ import {
   Plus,
   Trash2,
   Stethoscope,
+  RotateCcw,
+  MessageCircle,
 } from "lucide-react";
 
 function petAge(dob?: string): string {
@@ -56,6 +59,8 @@ export default function ConsultationView() {
   const { user } = useAuth();
 
   const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const [vitals, setVitals] = useState({
     weight_kg: "",
     temperature_f: "",
@@ -83,6 +88,34 @@ export default function ConsultationView() {
     condition_note: string;
   }>({ status: "not_needed", urgency: "", reason: "", condition_note: "" });
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+
+  // Autosave draft
+  const draftKey = `draft_consultation_${appointmentId}`;
+  const isRestored = useRef(false);
+
+  useEffect(() => {
+    if (isRestored.current) return;
+    const saved = localStorage.getItem(draftKey);
+    if (saved) {
+      try {
+        const draft = JSON.parse(saved);
+        if (draft.vitals) setVitals(draft.vitals);
+        if (draft.soap) setSoap(draft.soap);
+        if (draft.followUp) setFollowUp(draft.followUp);
+        if (draft.prescriptions) setPrescriptions(draft.prescriptions);
+        toast({ title: "Draft restored", description: "Your previous draft has been restored." });
+      } catch { /* ignore */ }
+    }
+    isRestored.current = true;
+  }, [draftKey, toast]);
+
+  useEffect(() => {
+    if (!isRestored.current) return;
+    const t = setTimeout(() => {
+      localStorage.setItem(draftKey, JSON.stringify({ vitals, soap, followUp, prescriptions }));
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [vitals, soap, followUp, prescriptions, draftKey]);
 
   useUnsavedChanges(isDirty);
 
@@ -121,20 +154,53 @@ export default function ConsultationView() {
     setIsDirty(true);
   };
 
+  const repeatLastRx = () => {
+    const lastRecord = petRecords
+      .filter((r) => r.prescriptions.length > 0)
+      .sort((a, b) => b.visit_date.localeCompare(a.visit_date))[0];
+    if (!lastRecord) {
+      toast({ title: "No previous prescriptions found for this pet.", variant: "destructive" });
+      return;
+    }
+    setPrescriptions(lastRecord.prescriptions.map((rx) => ({ ...rx })));
+    setIsDirty(true);
+    logAction({ actor_id: user?.id || "unknown", action_type: "repeat_prescription", entity_type: "medical_record", entity_id: lastRecord.id });
+    toast({ title: `Copied ${lastRecord.prescriptions.length} prescription(s) from ${format(parseISO(lastRecord.visit_date), "MMM d, yyyy")}` });
+  };
+
   const handleSave = () => {
+    setIsSaving(true);
+    logAction({ actor_id: user?.id || "unknown", action_type: "save_consultation", entity_type: "appointment", entity_id: appointmentId || "" });
+    localStorage.removeItem(draftKey);
     toast({ title: "Consultation saved", description: `${pet.name}'s record has been saved and appointment marked as completed.` });
     setIsDirty(false);
-    navigate("/consultations");
+    setIsSaving(false);
+    setIsSaved(true);
+  };
+
+  const shareViaWhatsApp = () => {
+    const rxText = prescriptions.map((rx) => `• ${rx.medication} ${rx.dosage} — ${rx.frequency} for ${rx.duration}`).join("\n");
+    const message = `🐾 Prescription for ${pet.name}\nDate: ${format(new Date(), "dd/MM/yyyy")}\nVet: ${user?.full_name || "Doctor"}\n\n${rxText || "No prescriptions"}\n\n${soap.follow_up_instructions ? `Instructions: ${soap.follow_up_instructions}` : ""}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
+    logAction({ actor_id: user?.id || "unknown", action_type: "whatsapp_share", entity_type: "prescription", entity_id: appointmentId || "" });
+    toast({ title: "Opening WhatsApp..." });
   };
 
   return (
     <div className="space-y-4">
       {/* Patient Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageHeader title={`Consultation — ${pet.name}`} backTo="/appointments" />
-        <Button onClick={handleSave} className="shrink-0">
-          <Save className="mr-2 h-4 w-4" /> Complete & Save
-        </Button>
+        <PageHeader title={`Consultation — ${pet.name}`} backTo="/consultations" />
+        <div className="flex gap-2 shrink-0">
+          {isSaved && (
+            <Button variant="outline" onClick={shareViaWhatsApp}>
+              <MessageCircle className="mr-2 h-4 w-4" /> Share via WhatsApp
+            </Button>
+          )}
+          <Button onClick={handleSave} disabled={isSaving} className="shrink-0">
+            <Save className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : isSaved ? "Saved ✓" : "Complete & Save"}
+          </Button>
+        </div>
       </div>
 
       {/* Patient ID Band */}
@@ -250,7 +316,12 @@ export default function ConsultationView() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <Label className="text-xs font-medium">Prescriptions</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={addPrescription} className="h-7 text-xs"><Plus className="mr-1 h-3 w-3" /> Add Rx</Button>
+                    <div className="flex gap-1">
+                      <Button type="button" variant="outline" size="sm" onClick={repeatLastRx} className="h-7 text-xs">
+                        <RotateCcw className="mr-1 h-3 w-3" /> Repeat Last Rx
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={addPrescription} className="h-7 text-xs"><Plus className="mr-1 h-3 w-3" /> Add Rx</Button>
+                    </div>
                   </div>
                   {prescriptions.length === 0 && <p className="text-xs text-muted-foreground">No prescriptions added yet.</p>}
                   <div className="space-y-2">

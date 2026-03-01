@@ -9,18 +9,29 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { logAction } from "@/lib/audit-log";
 import { useState } from "react";
-import { CreditCard, Printer, Download } from "lucide-react";
+import { CreditCard, Printer, Copy, MessageCircle } from "lucide-react";
 
 export default function InvoiceDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [showPay, setShowPay] = useState(false);
   const [payMethod, setPayMethod] = useState("UPI");
   const inv = mockInvoices.find((i) => i.id === id);
 
   if (!inv) return <div className="p-6">Invoice not found.</div>;
+
+  const shareViaWhatsApp = () => {
+    const itemsText = inv.line_items.map((li) => `• ${li.description} × ${li.quantity} = ₹${li.total.toLocaleString()}`).join("\n");
+    const message = `🧾 Invoice ${inv.invoice_number}\nPet: ${inv.pet?.name}\nOwner: ${inv.owner?.full_name}\n\n${itemsText}\n\nTotal: ₹${inv.total.toLocaleString()}\nDue: ${inv.due_date}\nStatus: ${inv.status}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
+    logAction({ actor_id: user?.id || "unknown", action_type: "whatsapp_share", entity_type: "invoice", entity_id: inv.id });
+    toast({ title: "Opening WhatsApp..." });
+  };
 
   return (
     <div className="space-y-6">
@@ -32,6 +43,12 @@ export default function InvoiceDetail() {
             <CreditCard className="mr-2 h-3 w-3" /> Mark Paid
           </Button>
         )}
+        <Button variant="outline" size="sm" onClick={() => navigate(`/billing/new?clone_from=${inv.id}`)}>
+          <Copy className="mr-2 h-3 w-3" /> Repeat Invoice
+        </Button>
+        <Button variant="outline" size="sm" onClick={shareViaWhatsApp}>
+          <MessageCircle className="mr-2 h-3 w-3" /> Share via WhatsApp
+        </Button>
         <Button variant="outline" size="sm" onClick={() => { window.print(); }} className="print:hidden">
           <Printer className="mr-2 h-3 w-3" /> Print / Save PDF
         </Button>

@@ -13,8 +13,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, CalendarIcon, UserPlus, Search } from "lucide-react";
+import { CheckCircle2, CalendarIcon, UserPlus, Search, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export default function PetForm() {
   const { id } = useParams();
@@ -43,6 +44,8 @@ export default function PetForm() {
   );
   const [dobMonth, setDobMonth] = useState<Date>(dobDate || new Date());
   const [isSaving, setIsSaving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | undefined>(existing?.photo_url);
 
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -59,13 +62,16 @@ export default function PetForm() {
   const years = Array.from({ length: currentYear - 2004 }, (_, i) => currentYear - i);
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name || !form.species || !form.owner_id) {
-      setTouched({ name: true, owner_id: true });
-      toast({ title: "Please fill the highlighted fields", variant: "destructive" });
-      return;
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setPhotoPreview(reader.result as string);
+      reader.readAsDataURL(file);
     }
+  };
+
+  const doSubmit = () => {
     setIsSaving(true);
     toast({
       title: isEdit ? `${form.name} updated successfully` : `${form.name} registered!`,
@@ -73,6 +79,20 @@ export default function PetForm() {
     });
     setIsSaving(false);
     navigate("/pets");
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name || !form.species || !form.owner_id) {
+      setTouched({ name: true, owner_id: true });
+      toast({ title: "Please fill the highlighted fields", variant: "destructive" });
+      return;
+    }
+    if (isEdit) {
+      setShowConfirm(true);
+    } else {
+      doSubmit();
+    }
   };
 
   return (
@@ -86,6 +106,24 @@ export default function PetForm() {
       <Card className="max-w-2xl">
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="grid gap-5 sm:grid-cols-2">
+            {/* Photo Upload */}
+            <div className="sm:col-span-2 flex items-center gap-4">
+              <label className="relative cursor-pointer group">
+                <div className="h-20 w-20 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center overflow-hidden bg-muted/30 group-hover:border-primary/50 transition-colors">
+                  {photoPreview ? (
+                    <img src={photoPreview} alt="Pet photo" className="h-full w-full object-cover" />
+                  ) : (
+                    <Camera className="h-6 w-6 text-muted-foreground/50" />
+                  )}
+                </div>
+                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+              </label>
+              <div className="text-sm">
+                <p className="font-medium">Pet Photo</p>
+                <p className="text-xs text-muted-foreground">Click to upload (optional)</p>
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <Label className={errors.name ? "text-destructive" : ""}>Pet Name *</Label>
               <Input
@@ -134,7 +172,7 @@ export default function PetForm() {
                     {dobDate ? format(dobDate, "PPP") : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0" align="start" style={{ minHeight: "370px" }}>
                   <div className="flex gap-2 p-3 pb-0">
                     <Select
                       value={String(dobMonth.getFullYear())}
@@ -177,6 +215,7 @@ export default function PetForm() {
                     onMonthChange={setDobMonth}
                     disabled={(date) => date > new Date()}
                     className="p-3 pointer-events-auto"
+                    fixedWeeks
                   />
                 </PopoverContent>
               </Popover>
@@ -238,6 +277,14 @@ export default function PetForm() {
           update("owner_id", ownerId);
           markTouched("owner_id");
         }}
+      />
+
+      <ConfirmDialog
+        open={showConfirm}
+        onOpenChange={setShowConfirm}
+        title="Confirm Changes"
+        description={`Are you sure you want to save changes to ${form.name}?`}
+        onConfirm={doSubmit}
       />
     </div>
   );

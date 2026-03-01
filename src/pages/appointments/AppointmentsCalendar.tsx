@@ -47,7 +47,9 @@ import {
   Stethoscope,
   CalendarPlus,
   AlertCircle,
+  Pencil,
 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
 
 function getFollowUpForAppointment(aptId: string) {
@@ -879,31 +881,60 @@ function AppointmentDetailActions({
   const navigate = useNavigate();
   const { hasRole } = useAuth();
   const isAdmin = hasRole(["admin"]);
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   if (apt.status === "scheduled") {
     return (
-      <div className="flex flex-wrap gap-2 border-t pt-3">
-        {isAdmin && (
-          <>
-            <Button size="sm" variant="outline" onClick={onComplete}>
-              <CheckCircle className="mr-1.5 h-3 w-3 text-green-500" /> Complete
-            </Button>
-            <Button size="sm" variant="outline" className="text-destructive" onClick={onCancel}>
-              <XCircle className="mr-1.5 h-3 w-3" /> Cancel
-            </Button>
-          </>
-        )}
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            onClose();
-            navigate(`/pets/${apt.pet_id}`);
-          }}
-        >
-          <PawPrint className="mr-1.5 h-3 w-3" /> View Pet
-        </Button>
-      </div>
+      <>
+        <div className="flex flex-wrap gap-2 border-t pt-3">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              onClose();
+              navigate(`/appointments/new?edit=${apt.id}`);
+            }}
+          >
+            <Pencil className="mr-1.5 h-3 w-3" /> Edit
+          </Button>
+          {isAdmin && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setShowCompleteConfirm(true)}>
+                <CheckCircle className="mr-1.5 h-3 w-3 text-green-500" /> Complete
+              </Button>
+              <Button size="sm" variant="outline" className="text-destructive" onClick={() => setShowCancelConfirm(true)}>
+                <XCircle className="mr-1.5 h-3 w-3" /> Cancel
+              </Button>
+            </>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              onClose();
+              navigate(`/pets/${apt.pet_id}`);
+            }}
+          >
+            <PawPrint className="mr-1.5 h-3 w-3" /> View Pet
+          </Button>
+        </div>
+        <ConfirmDialog
+          open={showCompleteConfirm}
+          onOpenChange={setShowCompleteConfirm}
+          title="Complete Appointment"
+          description="Are you sure you want to mark this appointment as completed?"
+          onConfirm={onComplete}
+        />
+        <ConfirmDialog
+          open={showCancelConfirm}
+          onOpenChange={setShowCancelConfirm}
+          title="Cancel Appointment"
+          description="Are you sure you want to cancel this appointment? This cannot be undone."
+          onConfirm={onCancel}
+          destructive
+        />
+      </>
     );
   }
 

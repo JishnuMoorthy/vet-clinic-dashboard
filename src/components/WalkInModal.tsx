@@ -18,14 +18,15 @@ interface Props {
 export function WalkInModal({ open, onOpenChange, onCreated }: Props) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [form, setForm] = useState({ ownerName: "", phone: "", petName: "", species: "Dog" });
+  const vets = mockUsers.filter((u) => u.role === "vet");
+  const [form, setForm] = useState({ ownerName: "", phone: "", petName: "", species: "Dog", vet_id: "", reason: "Walk-in" });
   const [isSaving, setIsSaving] = useState(false);
 
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSave = () => {
-    if (!form.ownerName || !form.phone || !form.petName) {
-      toast({ title: "Please fill Owner Name, Phone, and Pet Name", variant: "destructive" });
+    if (!form.ownerName || !form.phone || !form.petName || !form.vet_id) {
+      toast({ title: "Please fill Owner Name, Phone, Pet Name, and Doctor", variant: "destructive" });
       return;
     }
     setIsSaving(true);
@@ -57,7 +58,7 @@ export function WalkInModal({ open, onOpenChange, onCreated }: Props) {
     };
     addPet(newPet);
 
-    const vet = mockUsers.find((u) => u.role === "vet") || mockUsers[1];
+    const vet = mockUsers.find((u) => u.id === form.vet_id) || mockUsers[1];
     const newApt = {
       id: aptId,
       pet_id: petId,
@@ -66,7 +67,7 @@ export function WalkInModal({ open, onOpenChange, onCreated }: Props) {
       vet,
       date: today,
       time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
-      reason: "Walk-in",
+      reason: form.reason || "Walk-in",
       status: "scheduled" as const,
       created_at: now.toISOString(),
       updated_at: now.toISOString(),
@@ -75,7 +76,7 @@ export function WalkInModal({ open, onOpenChange, onCreated }: Props) {
 
     logAction({ actor_id: user?.id || "unknown", action_type: "walk_in_create", entity_type: "appointment", entity_id: aptId, metadata: { ownerId, petId } });
     toast({ title: `Walk-in registered: ${form.petName}`, description: `Owner: ${form.ownerName}` });
-    setForm({ ownerName: "", phone: "", petName: "", species: "Dog" });
+    setForm({ ownerName: "", phone: "", petName: "", species: "Dog", vet_id: "", reason: "Walk-in" });
     setIsSaving(false);
     onOpenChange(false);
     onCreated?.();
@@ -111,6 +112,21 @@ export function WalkInModal({ open, onOpenChange, onCreated }: Props) {
                 <SelectItem value="Other">🐾 Other</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Doctor *</Label>
+            <Select value={form.vet_id} onValueChange={(v) => update("vet_id", v)}>
+              <SelectTrigger><SelectValue placeholder="Select doctor" /></SelectTrigger>
+              <SelectContent>
+                {vets.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.full_name}{v.specialties?.length ? ` · ${v.specialties.join(", ")}` : ""}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Reason</Label>
+            <Input value={form.reason} onChange={(e) => update("reason", e.target.value)} placeholder="e.g., Walk-in checkup" />
           </div>
         </div>
         <DialogFooter>

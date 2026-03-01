@@ -75,7 +75,12 @@ export default function PetDetail() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={pet.name} backTo="/pets" />
+      <div className="flex items-center gap-4">
+        {pet.photo_url && (
+          <img src={pet.photo_url} alt={pet.name} className="h-16 w-16 rounded-full object-cover border-2 border-primary/20" />
+        )}
+        <PageHeader title={pet.name} backTo="/pets" />
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={() => navigate(`/pets/${pet.id}/edit`)}>

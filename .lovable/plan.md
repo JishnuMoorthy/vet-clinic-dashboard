@@ -1,148 +1,105 @@
 
 
-# Implementation Plan: 12 Feature Enhancements
+# Appointment Editing, Walk-In Improvements, DOB Picker Fix, Confirmations, and Pet Photo
 
 ## Overview
 
-This plan covers all 12 items from the feature spec, grouped into logical implementation batches. All changes are frontend-only using mock data patterns already established in the codebase.
+Five distinct improvements requested, all surgical changes that preserve existing functionality.
 
 ---
 
-## Batch 1: Registration and Core UX (Items 1, 2, 5)
+## 1. Edit Appointment from the Detail Pop-up
 
-### Item 1 — Inline Owner Creation in Pet Form (P0)
+**Current:** The appointment detail dialog only shows Complete, Cancel, and View Pet buttons for scheduled appointments.
 
-**Problem:** Creating a pet requires navigating away to create an owner first, losing all pet form state.
+**Change:** Add an "Edit Appointment" button (with a Pencil icon) in the `AppointmentDetailActions` component for scheduled appointments. Clicking it closes the dialog and navigates to `/appointments/new?edit={apt.id}` (or a dedicated edit route).
 
-**Changes:**
-- **`src/pages/pets/PetForm.tsx`**: Replace the Owner `<Select>` with a searchable input using `cmdk` (already installed). Add a `+ Add New Owner` option at the bottom of the dropdown.
-- **New: `src/components/InlineOwnerModal.tsx`**: A `<Dialog>` containing the same 4 fields from `OwnerForm.tsx` (Name, Phone, Email, Address). On save, it pushes a new owner to a local state array and auto-selects it, preserving all pet form fields.
-- **`src/lib/mock-data.ts`**: Export `mockOwners` as a `let` (mutable array) so the modal can push to it at runtime.
+Since the existing `AppointmentForm` already supports URL param pre-filling (`date`, `time`, `pet_id`, `reason`), we'll extend it to accept an `edit` param that loads the full appointment data (vet, date, time, reason, notes) into the form as an editable draft. On submit, it updates the appointment in-place instead of creating a new one.
 
-### Item 2 — Improve DOB Selection Speed (P1)
-
-**Problem:** Native `<input type="date">` requires month-by-month scrolling to reach birth years for pets.
-
-**Changes:**
-- **`src/pages/pets/PetForm.tsx`**: Replace `<Input type="date">` for DOB with a Popover + Calendar combo using shadcn's datepicker pattern (from useful-context). Add a year dropdown `<Select>` above the calendar (range: current year down to 2005) and a month dropdown beside it. When year/month changes, the calendar navigates to that month. Output stays ISO format.
-
-### Item 5 — Quick Add Walk-In Patient (P0)
-
-**Problem:** Walk-in patients require navigating through Owner -> Pet -> Appointment forms separately.
-
-**Changes:**
-- **New: `src/components/WalkInModal.tsx`**: A `<Dialog>` with fields: Owner Name (req), Phone (req), Pet Name (req), Species (optional, default "Dog"). One submit button with loading/disabled state. On save: creates owner (pushes to `mockOwners`), creates pet (pushes to `mockPets`), creates appointment for today with status "scheduled" (pushes to `mockAppointments`). Shows success toast with pet name.
-- **`src/pages/consultation/ConsultationsList.tsx`**: Add a "Quick Walk-In" button next to the vet filter. Opens the modal. After save, the new appointment appears in today's list immediately.
-- **`src/pages/appointments/AppointmentsCalendar.tsx`**: Add "Walk-In" button in the toolbar next to "New".
+**Files:**
+- `src/pages/appointments/AppointmentsCalendar.tsx` -- Add "Edit" button in `AppointmentDetailActions` for scheduled appointments
+- `src/pages/appointments/AppointmentForm.tsx` -- Read `edit` search param, load appointment data into form, change submit behavior to update instead of create
 
 ---
 
-## Batch 2: Navigation and Search (Items 3, 4, 6)
+## 2. Add Doctor Selection to Walk-In Modal
 
-### Item 3 — Rename Consultations to Today's Patients (P2)
+**Current:** The Walk-In modal auto-assigns the first vet found. User wants to choose the doctor.
 
-**Changes:**
-- **`src/components/AppSidebar.tsx`**: Change label from "Consultations" to "Today's Patients", keep hint as "Today's patient queue".
-- **`src/pages/consultation/ConsultationsList.tsx`**: Change page header from "Today's Consultations" to "Today's Patients".
-- No route changes (`/consultations` stays).
+**Change:** Add a Vet `<Select>` dropdown to the WalkInModal (between Pet Name and Species), populated from `mockUsers` filtered by `role === "vet"`. Also add a "Reason" text input (optional, defaults to "Walk-in"). The vet field will be required.
 
-### Item 4 — Top Search Bar (P0)
-
-**Changes:**
-- **`src/components/AppLayout.tsx`**: Add a search bar in the sticky header between `<SidebarTrigger>` and the user avatar. Uses `cmdk`'s `<Command>` component in a `<Popover>`. Debounced input (300ms via `setTimeout`).
-- **New: `src/components/GlobalSearch.tsx`**: Component that searches `mockOwners` (by name, phone), `mockPets` (by name), groups results under "Owners" / "Pets" headings. Clicking a result navigates to `/owners/:id` or `/pets/:id`. Shows "No results" state. Keyboard accessible (arrow keys + Enter).
-
-### Item 6 — Show Phone in Today's Patients List (P1)
-
-**Changes:**
-- **`src/pages/consultation/ConsultationsList.tsx`**: Add `apt.pet?.owner?.phone` as a subtitle under the owner name in each appointment card. Use a `Phone` icon and make it a clickable `tel:` link on mobile.
+**Files:**
+- `src/components/WalkInModal.tsx` -- Add vet_id and reason fields to the form state, add Select for vet and Input for reason in the UI
 
 ---
 
-## Batch 3: Clinical Efficiency (Items 7, 10)
+## 3. Fix DOB Calendar Popover Jumping
 
-### Item 7 — One-Click Repeat Prescription (P0)
+**Current:** When the user changes months in the DOB picker, the calendar height changes (28 vs 31 days = 4 vs 5 rows), causing the popover to shift position.
 
-**Changes:**
-- **`src/pages/consultation/ConsultationView.tsx`**: In the Prescriptions section, add a "Repeat Last Rx" button next to "Add Rx". When clicked, it finds the most recent `MedicalRecord` for the same pet (from `mockMedicalRecords`), copies its `prescriptions` array into the current form's prescription state as an editable draft. If no prior prescriptions exist, show a toast: "No previous prescriptions found for this pet." New prescriptions get new IDs on save; historical records remain untouched.
+**Change:** Set a fixed `min-height` on the `PopoverContent` or the Calendar wrapper so the popover size remains constant regardless of how many weeks the month has. A 6-row calendar (max possible) height will be used as the fixed minimum.
 
-### Item 10 — WhatsApp Prescription Sharing (P1)
-
-**Changes:**
-- **`src/pages/consultation/ConsultationView.tsx`**: After saving a consultation, show a "Share via WhatsApp" button. Constructs a `wa.me` link with a text summary of the prescription (medication, dosage, frequency, duration). Uses `encodeURIComponent` for safe URL encoding. Opens in a new tab. Shows a toast confirming share attempt.
+**Files:**
+- `src/pages/pets/PetForm.tsx` -- Add a fixed min-height style to the PopoverContent or Calendar container, and set `fixedWeeks` prop on the `Calendar` component (react-day-picker supports `fixedWeeks` which always renders 6 rows)
 
 ---
 
-## Batch 4: Billing Efficiency (Items 8, 9)
+## 4. Add Confirmation Dialogs to Destructive/Important Actions
 
-### Item 8 — One-Click Repeat Invoice (P0)
+**Current:** Complete and Cancel actions in the appointment dialog fire immediately with no confirmation.
 
-**Changes:**
-- **`src/pages/billing/InvoiceDetail.tsx`**: Add a "Repeat Invoice" button in the action bar. Navigates to `/billing/new?clone_from=inv-XXX`.
-- **`src/pages/billing/InvoiceForm.tsx`**: Read `clone_from` search param. If present, find the invoice in `mockInvoices`, clone its `line_items` (description, quantity, unit_price) into the form as an editable draft. Pet auto-selected. Totals recalculate live. New invoice number generated on save.
+**Change:** Wrap the following actions with the existing `ConfirmDialog` component:
+- **Complete appointment** -- "Are you sure you want to mark this appointment as completed?"
+- **Cancel appointment** -- "Are you sure you want to cancel this appointment? This cannot be undone." (destructive style)
+- **Edit/Save changes** on PetForm (when editing) -- "Confirm saving changes to {pet name}?"
 
-### Item 9 — WhatsApp Invoice Sharing (P1)
+This uses the existing `ConfirmDialog` component already in the codebase.
 
-**Changes:**
-- **`src/pages/billing/InvoiceDetail.tsx`**: Add a "Share via WhatsApp" button. Constructs a `wa.me` link with invoice summary (invoice number, total, due date, line items). Uses `encodeURIComponent`. Opens in new tab. Shows toast logging the share attempt.
+**Files:**
+- `src/pages/appointments/AppointmentsCalendar.tsx` -- Add confirm state for complete and cancel actions in `AppointmentDetailActions`
+- `src/pages/pets/PetForm.tsx` -- Add confirm dialog before saving edits (edit mode only)
 
 ---
 
-## Batch 5: Resilience and Logging (Items 11, 12)
+## 5. Pet Photo Upload and Display
 
-### Item 11 — Resilient Form Saving (P0)
+**Current:** No photo field exists for pets.
 
-**Changes:**
-- **`src/pages/billing/InvoiceForm.tsx`**: Add `useEffect` that saves form state to `localStorage` under key `draft_invoice` on every change (debounced 1s). On mount, check for existing draft and restore if found. Add a small "Draft restored" toast when restoring. Clear draft on successful submit.
-- **`src/pages/consultation/ConsultationView.tsx`**: Same pattern — save SOAP note + vitals + prescriptions + follow-up state to `localStorage` under `draft_consultation_${appointmentId}`. Restore on mount. Clear on save.
-- **All forms (PetForm, OwnerForm, AppointmentForm, InvoiceForm, ConsultationView)**: Add `disabled` state to submit buttons while saving (use `useState` for `isSaving`). Prevent double-click by disabling the button immediately on click.
+**Change:**
+- Add an optional `photo_url?: string` field to the `Pet` type
+- In `PetForm.tsx`, add a photo upload area (click-to-upload or drag-and-drop) at the top of the form. Since there's no backend storage, this will use a `FileReader` to create a data URL stored in form state. The preview shows a circular thumbnail.
+- Add sample `photo_url` values to mock pets in `mock-data.ts` using placeholder URLs (e.g., `https://images.unsplash.com/...` for dogs/cats)
+- In `ConsultationView.tsx`, display the pet's photo as a small avatar next to the pet name in the patient info header
+- In `PetDetail.tsx`, show the photo prominently at the top of the pet profile
 
-### Item 12 — Workflow Action Logging (P2)
-
-**Changes:**
-- **New: `src/lib/audit-log.ts`**: A simple in-memory audit logger:
-  ```
-  interface AuditEntry {
-    actor_id: string;
-    action_type: string;
-    entity_type: string;
-    entity_id: string;
-    timestamp: string;
-    metadata?: Record<string, unknown>;
-  }
-  ```
-  Exports `logAction(entry)` which pushes to an in-memory array and `console.info`s in dev. Exports `getAuditLog()` for future UI.
-- **Integration points**: Call `logAction` from: InlineOwnerModal (owner create), WalkInModal (walk-in create), InvoiceForm (repeat invoice), ConsultationView (repeat prescription, save consultation), InvoiceDetail (WhatsApp share).
+**Files:**
+- `src/types/api.ts` -- Add `photo_url?: string` to `Pet` interface
+- `src/lib/mock-data.ts` -- Add photo URLs to mock pets
+- `src/pages/pets/PetForm.tsx` -- Add photo upload input with preview
+- `src/pages/consultation/ConsultationView.tsx` -- Show pet photo avatar in patient info section
+- `src/pages/pets/PetDetail.tsx` -- Show pet photo at top of profile
 
 ---
 
 ## File Changes Summary
 
-| File | Action | Items |
-|------|--------|-------|
-| `src/pages/pets/PetForm.tsx` | Edit | 1, 2 |
-| `src/components/InlineOwnerModal.tsx` | Create | 1 |
-| `src/components/WalkInModal.tsx` | Create | 5 |
-| `src/components/GlobalSearch.tsx` | Create | 4 |
-| `src/components/AppLayout.tsx` | Edit | 4 |
-| `src/components/AppSidebar.tsx` | Edit | 3 |
-| `src/pages/consultation/ConsultationsList.tsx` | Edit | 3, 5, 6 |
-| `src/pages/consultation/ConsultationView.tsx` | Edit | 7, 10, 11 |
-| `src/pages/billing/InvoiceDetail.tsx` | Edit | 8, 9 |
-| `src/pages/billing/InvoiceForm.tsx` | Edit | 8, 11 |
-| `src/pages/appointments/AppointmentsCalendar.tsx` | Edit | 5 |
-| `src/pages/appointments/AppointmentForm.tsx` | Edit | 11 |
-| `src/pages/owners/OwnerForm.tsx` | Edit | 11 |
-| `src/lib/mock-data.ts` | Edit | 1, 5 |
-| `src/lib/audit-log.ts` | Create | 12 |
+| File | Changes |
+|------|---------|
+| `src/types/api.ts` | Add `photo_url` to Pet interface |
+| `src/lib/mock-data.ts` | Add photo URLs to mock pets, add vet selection to mock data |
+| `src/pages/appointments/AppointmentsCalendar.tsx` | Add Edit button in detail dialog; add ConfirmDialog for Complete/Cancel |
+| `src/pages/appointments/AppointmentForm.tsx` | Support `edit` param to load and update existing appointment |
+| `src/components/WalkInModal.tsx` | Add vet selector and reason field |
+| `src/pages/pets/PetForm.tsx` | Fix DOB popover jumping (fixedWeeks); add photo upload; add confirm dialog for edits |
+| `src/pages/pets/PetDetail.tsx` | Display pet photo |
+| `src/pages/consultation/ConsultationView.tsx` | Display pet photo avatar |
 
 ---
 
 ## Technical Notes
 
-- `mockOwners`, `mockPets`, and `mockAppointments` need to be exported as mutable (`let` + exported push helpers) so walk-in and inline owner creation can add records at runtime without page reload
-- The `cmdk` package (v1.1.1) is already installed for the command palette / searchable select pattern
-- WhatsApp sharing uses simple `https://wa.me/?text=...` links -- no API integration needed now, but the audit log captures share attempts for future tracking
-- All autosave drafts use `localStorage` with namespaced keys and are cleared on successful submit to prevent stale data
-- The DOB picker uses shadcn Calendar + Popover pattern with `pointer-events-auto` class as specified in the useful-context
+- The `fixedWeeks` prop on `react-day-picker`'s `DayPicker` component forces 6 rows to always render, preventing height changes. This is the cleanest fix for the jumping issue.
+- Pet photos use `FileReader.readAsDataURL()` for the demo (no backend needed). The data URL is stored in the form state and would be replaced with a proper storage URL in production.
+- The `ConfirmDialog` component already exists and follows the AlertDialog pattern -- we just wire it into the appointment actions and pet edit form.
+- The edit appointment flow reuses the existing `AppointmentForm` component by checking for an `edit` search parameter and pre-populating all fields from the matching appointment.
 

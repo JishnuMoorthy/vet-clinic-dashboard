@@ -1,18 +1,20 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
-import { mockPets, mockOwners, mockAppointments, mockInvoices } from "@/lib/mock-data";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { mockPets, mockInvoices, mockServices, mockInventory } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { logAction } from "@/lib/audit-log";
 import { useAuth } from "@/contexts/AuthContext";
 
-import { Plus, Trash2, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Search } from "lucide-react";
 
 interface LineItem {
   description: string;
@@ -22,13 +24,104 @@ interface LineItem {
 
 const DRAFT_KEY = "draft_invoice";
 
+// Searchable service picker for a single line item
+function ServicePicker({
+  value,
+  onChange,
+  onSelect,
+  hasError,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSelect: (name: string, price: number) => void;
+  hasError: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const medications = useMemo(
+    () => mockInventory.filter((i) => i.category === "Medications" && i.unit_price),
+    []
+  );
+
+  const activeServices = useMemo(() => mockServices.filter((s) => s.is_active), []);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            ref={inputRef}
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value);
+              if (!open) setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            placeholder="Search services / medications..."
+            className={`pl-8 ${hasError ? "border-destructive" : ""}`}
+          />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="w-[320px] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <Command>
+          <CommandInput placeholder="Search..." value={value} onValueChange={onChange} />
+          <CommandList>
+            <CommandEmpty>No results — type a custom description</CommandEmpty>
+            <CommandGroup heading="Services">
+              {activeServices
+                .filter((s) => s.name.toLowerCase().includes(value.toLowerCase()))
+                .slice(0, 8)
+                .map((s) => (
+                  <CommandItem
+                    key={s.id}
+                    value={s.name}
+                    onSelect={() => {
+                      onSelect(s.name, s.price);
+                      setOpen(false);
+                    }}
+                  >
+                    <div className="flex w-full justify-between">
+                      <span>{s.name}</span>
+                      <span className="text-muted-foreground">₹{s.price.toLocaleString()}</span>
+                    </div>
+                  </CommandItem>
+                ))}
+            </CommandGroup>
+            <CommandGroup heading="Medications (Inventory)">
+              {medications
+                .filter((m) => m.name.toLowerCase().includes(value.toLowerCase()))
+                .slice(0, 6)
+                .map((m) => (
+                  <CommandItem
+                    key={m.id}
+                    value={m.name}
+                    onSelect={() => {
+                      onSelect(m.name, m.unit_price!);
+                      setOpen(false);
+                    }}
+                  >
+                    <div className="flex w-full justify-between">
+                      <span>{m.name}</span>
+                      <span className="text-muted-foreground">₹{m.unit_price!.toLocaleString()}</span>
+                    </div>
+                  </CommandItem>
+                ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function InvoiceForm() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
 
-  // Pre-fill from completed appointment or clone
   const prefillPetId = searchParams.get("pet_id") || "";
   const prefillReason = searchParams.get("reason") || "";
   const cloneFrom = searchParams.get("clone_from") || "";
@@ -87,6 +180,12 @@ export default function InvoiceForm() {
   const updateItem = (i: number, key: keyof LineItem, value: string | number) =>
     setItems((prev) => prev.map((item, idx) => (idx === i ? { ...item, [key]: value } : item)));
 
+  const handleServiceSelect = (index: number, name: string, price: number) => {
+    setItems((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, description: name, unit_price: price } : item))
+    );
+  };
+
   const subtotal = items.reduce((sum, li) => sum + li.quantity * li.unit_price, 0);
   const total = subtotal - (parseFloat(discount) || 0);
 
@@ -113,7 +212,7 @@ export default function InvoiceForm() {
         title={cloneSource ? "Repeat Invoice" : "New Invoice"}
         subtitle={cloneSource ? `Cloned from ${cloneSource.invoice_number}` : prefillReason ? `Billing for: ${prefillReason}` : "Create a bill for services rendered"}
         backTo="/billing"
-        helpText="Select a pet first — the owner fills in automatically. Add line items for each service."
+        helpText="Select a pet first — the owner fills in automatically. Search for services or medications to auto-fill prices."
       />
       <Card className="max-w-3xl">
         <CardContent className="pt-6">
@@ -159,11 +258,11 @@ export default function InvoiceForm() {
                 <div key={i} className="grid grid-cols-[1fr_80px_100px_40px] gap-2 items-end">
                   <div>
                     {i === 0 && <Label className="text-xs text-muted-foreground">Service / Item</Label>}
-                    <Input
+                    <ServicePicker
                       value={li.description}
-                      onChange={(e) => updateItem(i, "description", e.target.value)}
-                      placeholder="e.g., Consultation fee"
-                      className={submitted && !li.description ? "border-destructive" : ""}
+                      onChange={(v) => updateItem(i, "description", v)}
+                      onSelect={(name, price) => handleServiceSelect(i, name, price)}
+                      hasError={submitted && !li.description}
                     />
                   </div>
                   <div>

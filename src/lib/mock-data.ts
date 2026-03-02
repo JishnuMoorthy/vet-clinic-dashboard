@@ -10,6 +10,7 @@ import type {
   InventoryItem,
   MedicalRecord,
   Vaccination,
+  ServiceItem,
 } from "@/types/api";
 
 // ============= Mock Users & Auth =============
@@ -310,6 +311,38 @@ export const mockVaccinations: Vaccination[] = [
   { id: "vax-006", pet_id: "pet-002", vaccine_name: "FVRCP", date_administered: "2025-09-12", next_due_date: "2026-09-12", batch_number: "FV-2025-2210", administered_by_id: "mock-vet-002", administered_by: mockUsers[2], created_at: "2025-09-12T00:00:00Z", updated_at: "2025-09-12T00:00:00Z" },
   { id: "vax-007", pet_id: "pet-007", vaccine_name: "Rabies", date_administered: "2025-01-15", next_due_date: "2026-01-15", batch_number: "RB-2025-0089", administered_by_id: "mock-vet-001", administered_by: mockUsers[1], created_at: "2025-01-15T00:00:00Z", updated_at: "2025-01-15T00:00:00Z" },
 ];
+
+// ============= Mock Services Catalog =============
+
+export let mockServices: ServiceItem[] = [
+  { id: "svc-001", name: "General Consultation", category: "consultation", price: 500, description: "Standard vet consultation", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-002", name: "Follow-up Visit", category: "consultation", price: 300, description: "Follow-up after treatment", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-003", name: "Emergency Consultation", category: "consultation", price: 1500, description: "After-hours or emergency visit", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-004", name: "Dental Cleaning", category: "procedure", price: 3000, description: "Scaling and polishing under sedation", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-005", name: "Spay / Neuter", category: "surgery", price: 5000, description: "Sterilization surgery", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-006", name: "Wound Dressing", category: "procedure", price: 800, description: "Clean and dress wound", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-007", name: "Blood Panel (CBC + Chemistry)", category: "diagnostic", price: 3500, description: "Complete blood count and biochemistry", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-008", name: "X-Ray", category: "diagnostic", price: 2500, description: "Digital radiograph", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-009", name: "Ultrasound", category: "diagnostic", price: 4000, description: "Abdominal or cardiac ultrasound", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-010", name: "Urinalysis", category: "diagnostic", price: 1200, description: "Urine test panel", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-011", name: "Rabies Vaccination", category: "vaccination", price: 1500, description: "Annual rabies vaccine", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-012", name: "DHPP Vaccination", category: "vaccination", price: 1200, description: "Distemper, hepatitis, parainfluenza, parvovirus", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-013", name: "Deworming", category: "vaccination", price: 300, description: "Oral deworming treatment", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-014", name: "Full Grooming", category: "grooming", price: 1200, description: "Bath, haircut, nail trim, ear cleaning", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "svc-015", name: "Nail Trim", category: "grooming", price: 200, description: "Nail clipping only", is_active: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+];
+
+export function addService(service: ServiceItem) {
+  mockServices = [...mockServices, service];
+}
+
+export function updateService(id: string, updates: Partial<ServiceItem>) {
+  mockServices = mockServices.map((s) => (s.id === id ? { ...s, ...updates, updated_at: new Date().toISOString() } : s));
+}
+
+export function deleteService(id: string) {
+  mockServices = mockServices.filter((s) => s.id !== id);
+}
 
 // ============= Dashboard Data =============
 

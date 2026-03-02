@@ -1,105 +1,94 @@
 
 
-# Appointment Editing, Walk-In Improvements, DOB Picker Fix, Confirmations, and Pet Photo
+# Services Catalog and Medication Billing Integration
 
 ## Overview
 
-Five distinct improvements requested, all surgical changes that preserve existing functionality.
+Create a Services Catalog that admins can manage (add/edit/delete services with prices), and integrate it into the invoice creation flow so staff can search and auto-populate line items. Also integrate inventory medications as billable items with automatic price population.
 
 ---
 
-## 1. Edit Appointment from the Detail Pop-up
+## What Changes
 
-**Current:** The appointment detail dialog only shows Complete, Cancel, and View Pet buttons for scheduled appointments.
+### 1. New data types and mock data
 
-**Change:** Add an "Edit Appointment" button (with a Pencil icon) in the `AppointmentDetailActions` component for scheduled appointments. Clicking it closes the dialog and navigates to `/appointments/new?edit={apt.id}` (or a dedicated edit route).
+**`src/types/api.ts`** -- Add a `ServiceItem` interface:
+```
+interface ServiceItem {
+  id: string;
+  name: string;
+  category: "consultation" | "procedure" | "diagnostic" | "vaccination" | "grooming" | "surgery" | "medication" | "other";
+  price: number;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+```
 
-Since the existing `AppointmentForm` already supports URL param pre-filling (`date`, `time`, `pet_id`, `reason`), we'll extend it to accept an `edit` param that loads the full appointment data (vet, date, time, reason, notes) into the form as an editable draft. On submit, it updates the appointment in-place instead of creating a new one.
+**`src/lib/mock-data.ts`** -- Add a mutable `mockServices` array with ~15 predefined services covering:
+- Consultations (General Consultation: 500, Follow-up: 300, Emergency: 1500)
+- Procedures (Dental Cleaning: 3000, Spay/Neuter: 5000, Wound Dressing: 800)
+- Diagnostics (Blood Panel: 3500, X-Ray: 2500, Ultrasound: 4000, Urinalysis: 1200)
+- Vaccinations (Rabies: 1500, DHPP: 1200, Deworming: 300)
+- Grooming (Full Grooming: 1200, Nail Trim: 200)
 
-**Files:**
-- `src/pages/appointments/AppointmentsCalendar.tsx` -- Add "Edit" button in `AppointmentDetailActions` for scheduled appointments
-- `src/pages/appointments/AppointmentForm.tsx` -- Read `edit` search param, load appointment data into form, change submit behavior to update instead of create
+Also expose `addService` and `updateService` helper functions for runtime CRUD.
 
----
+### 2. Services Catalog management page (admin only)
 
-## 2. Add Doctor Selection to Walk-In Modal
+**New: `src/pages/services/ServicesCatalog.tsx`** -- A table-based management page:
+- Search/filter bar at the top
+- Table columns: Service Name, Category, Price, Status, Actions (Edit/Delete)
+- "Add Service" button opens a dialog with fields: Name (req), Category (select), Price (req), Description (opt)
+- Inline edit via the same dialog pattern
+- Delete with ConfirmDialog
+- "Other" category option allows free-text for custom services
 
-**Current:** The Walk-In modal auto-assigns the first vet found. User wants to choose the doctor.
+**`src/App.tsx`** -- Add route: `/services` under admin-protected routes
 
-**Change:** Add a Vet `<Select>` dropdown to the WalkInModal (between Pet Name and Species), populated from `mockUsers` filtered by `role === "vet"`. Also add a "Reason" text input (optional, defaults to "Walk-in"). The vet field will be required.
+**`src/components/AppSidebar.tsx`** -- Add "Services" nav item under Administration section (between Billing and Inventory), using the `ClipboardList` icon
 
-**Files:**
-- `src/components/WalkInModal.tsx` -- Add vet_id and reason fields to the form state, add Select for vet and Input for reason in the UI
+### 3. Searchable service picker in Invoice Form
 
----
+**`src/pages/billing/InvoiceForm.tsx`** -- Replace the plain text `<Input>` for the "Service / Item" column with a searchable combobox (using `cmdk`):
+- When user starts typing, a dropdown shows matching services from `mockServices` + matching medications from `mockInventory` (filtered by category "Medications")
+- Results grouped under "Services" and "Medications" headings
+- Selecting a service auto-fills the description AND the unit price
+- User can still type free text for custom items (the "Other" option)
+- Price field remains editable after auto-fill (admin can override)
+- An "Other (custom)" option always appears at the bottom, keeping the current free-text behavior
 
-## 3. Fix DOB Calendar Popover Jumping
+### 4. Medication integration in billing
 
-**Current:** When the user changes months in the DOB picker, the calendar height changes (28 vs 31 days = 4 vs 5 rows), causing the popover to shift position.
+Medications from `mockInventory` (category "Medications") appear as a separate group in the service search dropdown in the invoice form. When selected:
+- Description auto-fills with the medication name
+- Price auto-fills from the inventory item's `unit_price`
+- Quantity defaults to 1 but is editable
 
-**Change:** Set a fixed `min-height` on the `PopoverContent` or the Calendar wrapper so the popover size remains constant regardless of how many weeks the month has. A 6-row calendar (max possible) height will be used as the fixed minimum.
-
-**Files:**
-- `src/pages/pets/PetForm.tsx` -- Add a fixed min-height style to the PopoverContent or Calendar container, and set `fixedWeeks` prop on the `Calendar` component (react-day-picker supports `fixedWeeks` which always renders 6 rows)
-
----
-
-## 4. Add Confirmation Dialogs to Destructive/Important Actions
-
-**Current:** Complete and Cancel actions in the appointment dialog fire immediately with no confirmation.
-
-**Change:** Wrap the following actions with the existing `ConfirmDialog` component:
-- **Complete appointment** -- "Are you sure you want to mark this appointment as completed?"
-- **Cancel appointment** -- "Are you sure you want to cancel this appointment? This cannot be undone." (destructive style)
-- **Edit/Save changes** on PetForm (when editing) -- "Confirm saving changes to {pet name}?"
-
-This uses the existing `ConfirmDialog` component already in the codebase.
-
-**Files:**
-- `src/pages/appointments/AppointmentsCalendar.tsx` -- Add confirm state for complete and cancel actions in `AppointmentDetailActions`
-- `src/pages/pets/PetForm.tsx` -- Add confirm dialog before saving edits (edit mode only)
-
----
-
-## 5. Pet Photo Upload and Display
-
-**Current:** No photo field exists for pets.
-
-**Change:**
-- Add an optional `photo_url?: string` field to the `Pet` type
-- In `PetForm.tsx`, add a photo upload area (click-to-upload or drag-and-drop) at the top of the form. Since there's no backend storage, this will use a `FileReader` to create a data URL stored in form state. The preview shows a circular thumbnail.
-- Add sample `photo_url` values to mock pets in `mock-data.ts` using placeholder URLs (e.g., `https://images.unsplash.com/...` for dogs/cats)
-- In `ConsultationView.tsx`, display the pet's photo as a small avatar next to the pet name in the patient info header
-- In `PetDetail.tsx`, show the photo prominently at the top of the pet profile
-
-**Files:**
-- `src/types/api.ts` -- Add `photo_url?: string` to `Pet` interface
-- `src/lib/mock-data.ts` -- Add photo URLs to mock pets
-- `src/pages/pets/PetForm.tsx` -- Add photo upload input with preview
-- `src/pages/consultation/ConsultationView.tsx` -- Show pet photo avatar in patient info section
-- `src/pages/pets/PetDetail.tsx` -- Show pet photo at top of profile
+This means admins don't need to remember medication prices -- they search "Amoxicillin" and it populates automatically.
 
 ---
 
 ## File Changes Summary
 
-| File | Changes |
-|------|---------|
-| `src/types/api.ts` | Add `photo_url` to Pet interface |
-| `src/lib/mock-data.ts` | Add photo URLs to mock pets, add vet selection to mock data |
-| `src/pages/appointments/AppointmentsCalendar.tsx` | Add Edit button in detail dialog; add ConfirmDialog for Complete/Cancel |
-| `src/pages/appointments/AppointmentForm.tsx` | Support `edit` param to load and update existing appointment |
-| `src/components/WalkInModal.tsx` | Add vet selector and reason field |
-| `src/pages/pets/PetForm.tsx` | Fix DOB popover jumping (fixedWeeks); add photo upload; add confirm dialog for edits |
-| `src/pages/pets/PetDetail.tsx` | Display pet photo |
-| `src/pages/consultation/ConsultationView.tsx` | Display pet photo avatar |
+| File | Action | Description |
+|------|--------|-------------|
+| `src/types/api.ts` | Edit | Add `ServiceItem` interface |
+| `src/lib/mock-data.ts` | Edit | Add `mockServices` array with ~15 services + helper functions |
+| `src/pages/services/ServicesCatalog.tsx` | Create | Admin CRUD page for services catalog |
+| `src/pages/billing/InvoiceForm.tsx` | Edit | Replace line item description input with searchable combobox that searches services + medications |
+| `src/App.tsx` | Edit | Add `/services` route (admin-protected) |
+| `src/components/AppSidebar.tsx` | Edit | Add "Services" link in Administration nav |
 
 ---
 
 ## Technical Notes
 
-- The `fixedWeeks` prop on `react-day-picker`'s `DayPicker` component forces 6 rows to always render, preventing height changes. This is the cleanest fix for the jumping issue.
-- Pet photos use `FileReader.readAsDataURL()` for the demo (no backend needed). The data URL is stored in the form state and would be replaced with a proper storage URL in production.
-- The `ConfirmDialog` component already exists and follows the AlertDialog pattern -- we just wire it into the appointment actions and pet edit form.
-- The edit appointment flow reuses the existing `AppointmentForm` component by checking for an `edit` search parameter and pre-populating all fields from the matching appointment.
+- The service picker in `InvoiceForm` uses the existing `cmdk` package (already installed) wrapped in a `Popover` for each line item's description field
+- Searching combines `mockServices.filter(...)` and `mockInventory.filter(i => i.category === "Medications")` results into grouped dropdown sections
+- When a service/medication is selected, both `description` and `unit_price` fields update via the existing `updateItem()` function
+- The "Other (custom)" fallback ensures backward compatibility -- users can always type a custom description with a manual price
+- The services catalog page follows the same table + dialog pattern used in `InventoryList.tsx` and `StaffList.tsx`
+- Mock services are exported as a mutable array (`let`) with `addService`/`updateService` helpers, matching the pattern used for `mockOwners` and `mockPets`
 

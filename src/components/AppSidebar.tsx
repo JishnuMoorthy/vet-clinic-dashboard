@@ -10,6 +10,7 @@ import {
   LogOut,
   BarChart3,
   Stethoscope,
+  ClipboardList,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,6 +38,7 @@ const mainNav = [
 const adminNav = [
   { title: "Operations", url: "/operations", icon: BarChart3, hint: "Clinic KPIs & metrics" },
   { title: "Billing", url: "/billing", icon: Receipt, hint: "Invoices & payments" },
+  { title: "Services", url: "/services", icon: ClipboardList, hint: "Service catalog & pricing" },
   { title: "Inventory", url: "/inventory", icon: Package, hint: "Stock management" },
   { title: "Staff", url: "/staff", icon: UserCog, hint: "Team & roles" },
 ];

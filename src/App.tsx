@@ -29,6 +29,7 @@ import ConsultationView from "@/pages/consultation/ConsultationView";
 import ConsultationsList from "@/pages/consultation/ConsultationsList";
 import MedicalRecordForm from "@/pages/medical-records/MedicalRecordForm";
 import Settings from "@/pages/Settings";
+import ServicesCatalog from "@/pages/services/ServicesCatalog";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -78,6 +79,8 @@ const App = () => (
               <Route path="/inventory" element={<ProtectedRoute allowedRoles={["admin"]}><InventoryList /></ProtectedRoute>} />
               <Route path="/inventory/new" element={<ProtectedRoute allowedRoles={["admin"]}><InventoryForm /></ProtectedRoute>} />
               <Route path="/inventory/:id/edit" element={<ProtectedRoute allowedRoles={["admin"]}><InventoryForm /></ProtectedRoute>} />
+              {/* Services */}
+              <Route path="/services" element={<ProtectedRoute allowedRoles={["admin"]}><ServicesCatalog /></ProtectedRoute>} />
               {/* Staff (admin) */}
               <Route path="/staff" element={<ProtectedRoute allowedRoles={["admin"]}><StaffList /></ProtectedRoute>} />
               <Route path="/staff/new" element={<ProtectedRoute allowedRoles={["admin"]}><StaffForm /></ProtectedRoute>} />

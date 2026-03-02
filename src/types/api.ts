@@ -176,6 +176,19 @@ export interface Vaccination {
   updated_at: string;
 }
 
+export type ServiceCategory = "consultation" | "procedure" | "diagnostic" | "vaccination" | "grooming" | "surgery" | "medication" | "other";
+
+export interface ServiceItem {
+  id: string;
+  name: string;
+  category: ServiceCategory;
+  price: number;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;

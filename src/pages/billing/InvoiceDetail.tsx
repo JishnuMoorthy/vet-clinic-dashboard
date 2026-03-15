@@ -1,4 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getInvoice, updateInvoice } from "@/lib/api-services";
 import { mockInvoices } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -19,9 +21,26 @@ export default function InvoiceDetail() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [showPay, setShowPay] = useState(false);
   const [payMethod, setPayMethod] = useState("UPI");
-  const inv = mockInvoices.find((i) => i.id === id);
+
+  const { data: inv } = useQuery({
+    queryKey: ["invoice", id],
+    queryFn: () => getInvoice(id!),
+    enabled: !!id,
+    placeholderData: mockInvoices.find((i) => i.id === id),
+  });
+
+  const payMutation = useMutation({
+    mutationFn: () => updateInvoice(id!, { status: "paid", payment_method: payMethod }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice", id] });
+      toast({ title: `Marked as paid via ${payMethod}` });
+      setShowPay(false);
+    },
+  });
 
   if (!inv) return <div className="p-6">Invoice not found.</div>;
 
@@ -119,7 +138,7 @@ export default function InvoiceDetail() {
             </Select>
           </div>
           <DialogFooter>
-            <Button onClick={() => { toast({ title: `Marked as paid via ${payMethod} (mock)` }); setShowPay(false); }}>
+            <Button onClick={() => payMutation.mutate()} disabled={payMutation.isPending}>
               Confirm Payment
             </Button>
           </DialogFooter>

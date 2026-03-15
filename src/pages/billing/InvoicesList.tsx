@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { getInvoices } from "@/lib/api-services";
 import { mockInvoices } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -14,7 +16,14 @@ export default function InvoicesList() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const filtered = mockInvoices.filter((inv) => {
+  const { data: invoicesRes } = useQuery({
+    queryKey: ["invoices"],
+    queryFn: () => getInvoices(),
+  });
+
+  const invoices = invoicesRes?.data ?? mockInvoices;
+
+  const filtered = invoices.filter((inv) => {
     const matchSearch =
       inv.invoice_number.toLowerCase().includes(search.toLowerCase()) ||
       inv.owner?.full_name.toLowerCase().includes(search.toLowerCase()) ||

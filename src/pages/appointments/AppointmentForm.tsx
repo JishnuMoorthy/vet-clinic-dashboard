@@ -1,5 +1,7 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getPets, getStaff, getAppointments, createAppointment, updateAppointment } from "@/lib/api-services";
 import { mockPets, mockUsers, mockAppointments } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,31 +14,23 @@ import { useToast } from "@/hooks/use-toast";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { CheckCircle2, AlertTriangle, Search } from "lucide-react";
 
-const vets = mockUsers.filter((u) => u.role === "vet");
-
-const morningSlots = Array.from({ length: 6 }, (_, i) => {
-  const hour = Math.floor(i / 2) + 9;
-  const min = i % 2 === 0 ? "00" : "30";
-  return `${hour.toString().padStart(2, "0")}:${min}`;
-});
-const afternoonSlots = Array.from({ length: 8 }, (_, i) => {
-  const hour = Math.floor(i / 2) + 12;
-  const min = i % 2 === 0 ? "00" : "30";
-  return `${hour.toString().padStart(2, "0")}:${min}`;
-});
-const eveningSlots = Array.from({ length: 4 }, (_, i) => {
-  const hour = Math.floor(i / 2) + 16;
-  const min = i % 2 === 0 ? "00" : "30";
-  return `${hour.toString().padStart(2, "0")}:${min}`;
-});
-
 export default function AppointmentForm() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
 
+  const { data: petsRes } = useQuery({ queryKey: ["pets"], queryFn: () => getPets() });
+  const { data: staffRes } = useQuery({ queryKey: ["staff"], queryFn: () => getStaff() });
+  const { data: appointmentsRes } = useQuery({ queryKey: ["appointments"], queryFn: () => getAppointments() });
+
+  const allPets = petsRes?.data ?? mockPets;
+  const allUsers = staffRes?.data ?? mockUsers;
+  const allAppointments = appointmentsRes?.data ?? mockAppointments;
+  const vets = allUsers.filter((u) => u.role === "vet");
+
   const editId = searchParams.get("edit") || "";
-  const editingApt = editId ? mockAppointments.find((a) => a.id === editId) : null;
+  const editingApt = editId ? allAppointments.find((a) => a.id === editId) : null;
   const isEdit = !!editingApt;
 
   const prefillDate = editingApt?.date || searchParams.get("date") || "";
@@ -58,6 +52,22 @@ export default function AppointmentForm() {
   const [petSearch, setPetSearch] = useState("");
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
+
+  const morningSlots = Array.from({ length: 6 }, (_, i) => {
+    const hour = Math.floor(i / 2) + 9;
+    const min = i % 2 === 0 ? "00" : "30";
+    return `${hour.toString().padStart(2, "0")}:${min}`;
+  });
+  const afternoonSlots = Array.from({ length: 8 }, (_, i) => {
+    const hour = Math.floor(i / 2) + 12;
+    const min = i % 2 === 0 ? "00" : "30";
+    return `${hour.toString().padStart(2, "0")}:${min}`;
+  });
+  const eveningSlots = Array.from({ length: 4 }, (_, i) => {
+    const hour = Math.floor(i / 2) + 16;
+    const min = i % 2 === 0 ? "00" : "30";
+    return `${hour.toString().padStart(2, "0")}:${min}`;
+  });
   const [isSaving, setIsSaving] = useState(false);
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -81,7 +91,7 @@ export default function AppointmentForm() {
 
   const conflictWarning = useMemo(() => {
     if (!form.vet_id || !form.date || !form.time) return null;
-    const conflict = mockAppointments.find(
+    const conflict = allAppointments.find(
       (a) =>
         a.vet_id === form.vet_id &&
         a.date === form.date &&
@@ -94,15 +104,34 @@ export default function AppointmentForm() {
       return `⚠ ${vetName} already has "${conflict.pet?.name} — ${conflict.reason}" at ${form.time} on this date.`;
     }
     return null;
-  }, [form.vet_id, form.date, form.time, editId]);
+  }, [form.vet_id, form.date, form.time, editId, allAppointments, vets]);
 
   const filteredPets = petSearch
-    ? mockPets.filter(
+    ? allPets.filter(
         (p) =>
           p.name.toLowerCase().includes(petSearch.toLowerCase()) ||
           p.owner?.full_name.toLowerCase().includes(petSearch.toLowerCase())
       )
-    : mockPets;
+    : allPets;
+
+  const mutation = useMutation({
+    mutationFn: (data: typeof form) =>
+      isEdit
+        ? updateAppointment(editId, data)
+        : createAppointment(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      setSubmitted(true);
+      toast({
+        title: isEdit ? "Appointment updated!" : "Appointment scheduled!",
+        description: isEdit ? "The changes have been saved." : "The visit has been added to the calendar.",
+      });
+      navigate("/appointments");
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "Failed to save appointment", variant: "destructive" });
+    },
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,41 +143,7 @@ export default function AppointmentForm() {
       toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
-    setIsSaving(true);
-    setSubmitted(true);
-
-    if (isEdit && editingApt) {
-      // Update existing appointment in-place
-      const idx = mockAppointments.findIndex((a) => a.id === editId);
-      if (idx !== -1) {
-        const pet = mockPets.find((p) => p.id === form.pet_id);
-        const vet = mockUsers.find((u) => u.id === form.vet_id);
-        mockAppointments[idx] = {
-          ...editingApt,
-          pet_id: form.pet_id,
-          pet: pet || editingApt.pet,
-          vet_id: form.vet_id,
-          vet: vet || editingApt.vet,
-          date: form.date,
-          time: form.time,
-          reason: form.reason,
-          notes: form.notes || undefined,
-          updated_at: new Date().toISOString(),
-        };
-      }
-      toast({
-        title: "Appointment updated!",
-        description: "The changes have been saved.",
-      });
-    } else {
-      toast({
-        title: "Appointment scheduled!",
-        description: "The visit has been added to the calendar.",
-      });
-    }
-
-    setIsSaving(false);
-    navigate("/appointments");
+    mutation.mutate(form);
   };
 
   return (
@@ -271,9 +266,9 @@ export default function AppointmentForm() {
               <p className="text-[11px] text-muted-foreground">Optional — visible to the assigned vet</p>
             </div>
             <div className="flex gap-2 sm:col-span-2 pt-2">
-              <Button type="submit" disabled={isSaving}>
+              <Button type="submit" disabled={mutation.isPending}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : isEdit ? "Save Changes" : "Schedule Appointment"}
+                {mutation.isPending ? "Saving..." : isEdit ? "Save Changes" : "Schedule Appointment"}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/appointments")}>Cancel</Button>
             </div>

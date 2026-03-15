@@ -30,10 +30,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // Try real backend first
       const data = await api.post<AuthResponse>("/auth/login", { email, password });
+      // Map backend `name` field to frontend `full_name` field
+      const mappedUser = { ...data.user, full_name: (data.user as any).name || data.user.full_name };
       localStorage.setItem("auth_token", data.access_token);
-      localStorage.setItem("auth_user", JSON.stringify(data.user));
+      localStorage.setItem("auth_user", JSON.stringify(mappedUser));
       setToken(data.access_token);
-      setUser(data.user);
+      setUser(mappedUser);
     } catch (err: any) {
       // If network error (backend unreachable), fall back to mock login
       if (err.message === "Failed to fetch" || err.message === "Load failed") {

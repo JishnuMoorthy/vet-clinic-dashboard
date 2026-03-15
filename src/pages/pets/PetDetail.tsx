@@ -1,4 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getPet, deletePet, getAppointments, getInvoices } from "@/lib/api-services";
 import { mockPets, mockAppointments, mockInvoices, mockMedicalRecords, mockVaccinations } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -17,15 +19,44 @@ export default function PetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [selectedVax, setSelectedVax] = useState<Vaccination | null>(null);
   const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
-  const pet = mockPets.find((p) => p.id === id);
+
+  const { data: pet } = useQuery({
+    queryKey: ["pet", id],
+    queryFn: () => getPet(id!),
+    enabled: !!id,
+    placeholderData: mockPets.find((p) => p.id === id),
+  });
+
+  const { data: appointmentsRes } = useQuery({
+    queryKey: ["appointments"],
+    queryFn: () => getAppointments(),
+  });
+
+  const { data: invoicesRes } = useQuery({
+    queryKey: ["invoices"],
+    queryFn: () => getInvoices(),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deletePet(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pets"] });
+      toast({ title: `${pet?.name} deleted` });
+      navigate("/pets");
+    },
+  });
 
   if (!pet) return <div className="p-6">Pet not found.</div>;
 
-  const petAppointments = mockAppointments.filter((a) => a.pet_id === pet.id);
-  const petInvoices = mockInvoices.filter((i) => i.pet_id === pet.id);
+  const allAppointments = appointmentsRes?.data ?? mockAppointments;
+  const allInvoices = invoicesRes?.data ?? mockInvoices;
+
+  const petAppointments = allAppointments.filter((a) => a.pet_id === pet.id);
+  const petInvoices = allInvoices.filter((i) => i.pet_id === pet.id);
   const petRecords = mockMedicalRecords.filter((r) => r.pet_id === pet.id);
   const petVaccinations = mockVaccinations.filter((v) => v.pet_id === pet.id);
 
@@ -309,10 +340,7 @@ export default function PetDetail() {
         onOpenChange={setShowDelete}
         title="Delete Pet"
         description={`Are you sure you want to delete ${pet.name}? This action cannot be undone.`}
-        onConfirm={() => {
-          toast({ title: `${pet.name} deleted (mock)` });
-          navigate("/pets");
-        }}
+        onConfirm={() => deleteMutation.mutate()}
         destructive
       />
     </div>

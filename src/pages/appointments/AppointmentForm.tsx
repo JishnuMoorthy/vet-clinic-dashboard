@@ -68,7 +68,6 @@ export default function AppointmentForm() {
     const min = i % 2 === 0 ? "00" : "30";
     return `${hour.toString().padStart(2, "0")}:${min}`;
   });
-  const [isSaving, setIsSaving] = useState(false);
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 

@@ -350,7 +350,7 @@ export async function createPet(data: Partial<Pet>): Promise<Pet> {
       name: data.name || "",
       species: data.species || "Dog",
       breed: data.breed || null,
-      gender: data.gender || null,
+      gender: data.gender ? data.gender.toLowerCase() : null,
       date_of_birth: data.date_of_birth || null,
       weight_kg: data.weight ?? null,
       microchip_id: data.microchip_id || null,

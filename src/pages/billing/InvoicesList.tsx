@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { getInvoices } from "@/lib/api-services";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getInvoices, updateInvoice } from "@/lib/api-services";
 import { mockInvoices } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -9,10 +9,13 @@ import { EmptyState } from "@/components/EmptyState";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
 import { Search } from "lucide-react";
 
 export default function InvoicesList() {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -22,6 +25,17 @@ export default function InvoicesList() {
   });
 
   const invoices = invoicesRes?.data ?? mockInvoices;
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => updateInvoice(id, { status } as any),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({ title: `Invoice status updated to ${vars.status}` });
+    },
+    onError: () => {
+      toast({ title: "Failed to update status", variant: "destructive" });
+    },
+  });
 
   const filtered = invoices.filter((inv) => {
     const matchSearch =
@@ -74,7 +88,21 @@ export default function InvoicesList() {
                   <TableCell>{inv.owner?.full_name}</TableCell>
                   <TableCell>₹{inv.total.toLocaleString()}</TableCell>
                   <TableCell>{inv.due_date}</TableCell>
-                  <TableCell><StatusBadge status={inv.status} /></TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Select
+                      value={inv.status}
+                      onValueChange={(val) => statusMutation.mutate({ id: inv.id, status: val })}
+                    >
+                      <SelectTrigger className="h-7 w-[110px] text-xs border-0 bg-transparent p-0 focus:ring-0 [&>svg]:ml-1">
+                        <StatusBadge status={inv.status} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="paid">Paid</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="overdue">Overdue</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

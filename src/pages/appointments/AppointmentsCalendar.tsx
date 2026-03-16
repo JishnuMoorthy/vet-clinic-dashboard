@@ -24,11 +24,12 @@ import {
 import { mockMedicalRecords } from "@/lib/mock-data";
 import { WalkInModal } from "@/components/WalkInModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAppointments, getStaff, updateAppointment } from "@/lib/api-services";
+import { getAppointments, getStaff, getOwners, getPets, updateAppointment } from "@/lib/api-services";
 import type { Appointment } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -50,6 +51,7 @@ import {
   CalendarPlus,
   AlertCircle,
   Pencil,
+  Filter,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
@@ -69,20 +71,14 @@ const URGENCY_LABELS: Record<string, string> = {
 
 type CalendarViewMode = "day" | "week" | "month";
 
-const VET_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
-  "mock-vet-001": {
-    bg: "bg-blue-100 dark:bg-blue-900/30",
-    border: "border-l-blue-500",
-    text: "text-blue-800 dark:text-blue-200",
-    dot: "bg-blue-500",
-  },
-  "mock-vet-002": {
-    bg: "bg-purple-100 dark:bg-purple-900/30",
-    border: "border-l-purple-500",
-    text: "text-purple-800 dark:text-purple-200",
-    dot: "bg-purple-500",
-  },
-};
+const COLOR_PALETTE = [
+  { bg: "bg-blue-100 dark:bg-blue-900/30", border: "border-l-blue-500", text: "text-blue-800 dark:text-blue-200", dot: "bg-blue-500" },
+  { bg: "bg-purple-100 dark:bg-purple-900/30", border: "border-l-purple-500", text: "text-purple-800 dark:text-purple-200", dot: "bg-purple-500" },
+  { bg: "bg-emerald-100 dark:bg-emerald-900/30", border: "border-l-emerald-500", text: "text-emerald-800 dark:text-emerald-200", dot: "bg-emerald-500" },
+  { bg: "bg-amber-100 dark:bg-amber-900/30", border: "border-l-amber-500", text: "text-amber-800 dark:text-amber-200", dot: "bg-amber-500" },
+  { bg: "bg-rose-100 dark:bg-rose-900/30", border: "border-l-rose-500", text: "text-rose-800 dark:text-rose-200", dot: "bg-rose-500" },
+  { bg: "bg-cyan-100 dark:bg-cyan-900/30", border: "border-l-cyan-500", text: "text-cyan-800 dark:text-cyan-200", dot: "bg-cyan-500" },
+];
 
 const DEFAULT_COLOR = {
   bg: "bg-primary/10",
@@ -90,10 +86,6 @@ const DEFAULT_COLOR = {
   text: "text-primary",
   dot: "bg-primary",
 };
-
-function getVetColor(vetId: string) {
-  return VET_COLORS[vetId] || DEFAULT_COLOR;
-}
 
 const HOUR_HEIGHT = 60;
 const START_HOUR = 7;
@@ -136,17 +128,69 @@ export default function AppointmentsCalendar() {
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const timeGridRef = useRef<HTMLDivElement>(null);
 
+  // Filters
+  const [filterVet, setFilterVet] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterPet, setFilterPet] = useState("all");
+  const [filterOwner, setFilterOwner] = useState("all");
+
   const { data: apptData } = useQuery({
     queryKey: ["appointments"],
     queryFn: () => getAppointments(),
   });
-  const appointments = apptData?.data || [];
+  const allAppointments = apptData?.data || [];
 
   const { data: staffData } = useQuery({
     queryKey: ["staff"],
     queryFn: () => getStaff(),
   });
   const vets = (staffData?.data || []).filter((u) => u.role === "vet");
+
+  // Build vet color map dynamically
+  const vetColorMap = useMemo(() => {
+    const map: Record<string, typeof DEFAULT_COLOR> = {};
+    vets.forEach((v, i) => {
+      map[v.id] = COLOR_PALETTE[i % COLOR_PALETTE.length];
+    });
+    return map;
+  }, [vets]);
+
+  function getVetColor(vetId: string) {
+    return vetColorMap[vetId] || DEFAULT_COLOR;
+  }
+
+  // Unique pets and owners from appointments for filter dropdowns
+  const uniquePets = useMemo(() => {
+    const map = new Map<string, string>();
+    allAppointments.forEach((a) => { if (a.pet?.name) map.set(a.pet_id, a.pet.name); });
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [allAppointments]);
+
+  const uniqueOwners = useMemo(() => {
+    const map = new Map<string, string>();
+    allAppointments.forEach((a) => {
+      const owner = (a as any).pet_owners || a.pet?.owner;
+      if (owner) map.set(owner.id || a.pet?.owner_id, owner.full_name || owner.name);
+    });
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [allAppointments]);
+
+  // Apply filters
+  const appointments = useMemo(() => {
+    return allAppointments.filter((a) => {
+      if (filterVet !== "all" && a.vet_id !== filterVet) return false;
+      if (filterStatus !== "all" && a.status !== filterStatus) return false;
+      if (filterPet !== "all" && a.pet_id !== filterPet) return false;
+      if (filterOwner !== "all") {
+        const owner = (a as any).pet_owners || a.pet?.owner;
+        const ownerId = owner?.id || a.pet?.owner_id;
+        if (ownerId !== filterOwner) return false;
+      }
+      return true;
+    });
+  }, [allAppointments, filterVet, filterStatus, filterPet, filterOwner]);
+
+  const hasFilters = filterVet !== "all" || filterStatus !== "all" || filterPet !== "all" || filterOwner !== "all";
 
   useEffect(() => {
     if (timeGridRef.current && (viewMode === "week" || viewMode === "day")) {
@@ -199,6 +243,13 @@ export default function AppointmentsCalendar() {
 
   const getAptsForDay = (day: Date) =>
     appointments.filter((a) => isSameDay(parseISO(a.date), day));
+
+  const clearFilters = () => {
+    setFilterVet("all");
+    setFilterStatus("all");
+    setFilterPet("all");
+    setFilterOwner("all");
+  };
 
   return (
     <div className="flex h-[calc(100vh-7rem)] flex-col gap-0">
@@ -260,6 +311,61 @@ export default function AppointmentsCalendar() {
         <Button size="sm" onClick={() => navigate("/appointments/new")}>
           <Plus className="mr-1 h-3 w-3" /> New
         </Button>
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-2 py-1.5">
+        <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+        <Select value={filterVet} onValueChange={setFilterVet}>
+          <SelectTrigger className="h-7 w-[140px] text-xs">
+            <SelectValue placeholder="All Vets" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Vets</SelectItem>
+            {vets.map((v) => (
+              <SelectItem key={v.id} value={v.id}>{v.full_name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="h-7 w-[130px] text-xs">
+            <SelectValue placeholder="All Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="scheduled">Scheduled</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+            <SelectItem value="no-show">No Show</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterPet} onValueChange={setFilterPet}>
+          <SelectTrigger className="h-7 w-[140px] text-xs">
+            <SelectValue placeholder="All Pets" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Pets</SelectItem>
+            {uniquePets.map((p) => (
+              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterOwner} onValueChange={setFilterOwner}>
+          <SelectTrigger className="h-7 w-[140px] text-xs">
+            <SelectValue placeholder="All Owners" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Owners</SelectItem>
+            {uniqueOwners.map((o) => (
+              <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {hasFilters && (
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        )}
       </div>
 
       {/* Main content */}
@@ -328,6 +434,7 @@ export default function AppointmentsCalendar() {
               onReschedule={reschedule}
               dragOverSlot={dragOverSlot}
               setDragOverSlot={setDragOverSlot}
+              getVetColor={getVetColor}
             />
           )}
           {viewMode === "week" && (
@@ -345,6 +452,7 @@ export default function AppointmentsCalendar() {
               onReschedule={reschedule}
               dragOverSlot={dragOverSlot}
               setDragOverSlot={setDragOverSlot}
+              getVetColor={getVetColor}
             />
           )}
           {viewMode === "day" && (
@@ -360,6 +468,7 @@ export default function AppointmentsCalendar() {
               onReschedule={reschedule}
               dragOverSlot={dragOverSlot}
               setDragOverSlot={setDragOverSlot}
+              getVetColor={getVetColor}
             />
           )}
         </div>
@@ -386,6 +495,7 @@ export default function AppointmentsCalendar() {
                 toast({ title: "Appointment cancelled" });
                 setSelectedAppointment(null);
               }}
+              getVetColor={getVetColor}
             />
           )}
         </DialogContent>
@@ -437,6 +547,7 @@ function MonthGrid({
   onReschedule,
   dragOverSlot,
   setDragOverSlot,
+  getVetColor,
 }: {
   currentDate: Date;
   getAptsForDay: (d: Date) => Appointment[];
@@ -445,6 +556,7 @@ function MonthGrid({
   onReschedule: (aptId: string, newDate: string, newTime: string) => void;
   dragOverSlot: string | null;
   setDragOverSlot: (s: string | null) => void;
+  getVetColor: (vetId: string) => { bg: string; border: string; text: string; dot: string };
 }) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -508,7 +620,7 @@ function MonthGrid({
                     className={cn(
                       "text-xs font-medium mb-0.5 w-6 h-6 flex items-center justify-center rounded-full mx-auto",
                       todayCheck && "bg-primary text-primary-foreground",
-                      !inMonth && "text-muted-foreground/50"
+                      !inMonth && "text-muted-foreground"
                     )}
                   >
                     {format(d, "d")}
@@ -521,25 +633,25 @@ function MonthGrid({
                           key={apt.id}
                           apt={apt}
                           className={cn(
-                            "relative w-full rounded px-1 py-0.5 text-[10px] leading-tight truncate text-left border-l-2",
+                            "relative rounded px-1 py-0.5 text-[10px] truncate border-l-2",
                             color.bg,
                             color.border,
-                            color.text,
-                            apt.status === "cancelled" && "opacity-50 line-through"
+                            color.text
                           )}
                           onClick={(e) => {
                             e.stopPropagation();
                             onSelectAppointment(apt);
                           }}
                         >
-                          <span className="truncate">{apt.time} {apt.pet?.name}</span>
+                          <span className="font-medium">{apt.time.slice(0, 5)}</span>{" "}
+                          {apt.pet?.name}
                         </DraggableAppointment>
                       );
                     })}
                     {apts.length > 3 && (
-                      <p className="text-[10px] text-muted-foreground text-center">
+                      <div className="text-[10px] text-muted-foreground pl-1">
                         +{apts.length - 3} more
-                      </p>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -564,147 +676,115 @@ const WeekGrid = React.forwardRef<
     onReschedule: (aptId: string, newDate: string, newTime: string) => void;
     dragOverSlot: string | null;
     setDragOverSlot: (s: string | null) => void;
+    getVetColor: (vetId: string) => { bg: string; border: string; text: string; dot: string };
   }
->(({ currentDate, getAptsForDay, onSelectAppointment, onTimeClick, onReschedule, dragOverSlot, setDragOverSlot }, ref) => {
+>(({ currentDate, getAptsForDay, onSelectAppointment, onTimeClick, onReschedule, dragOverSlot, setDragOverSlot, getVetColor }, ref) => {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  const handleSlotDrop = (e: DragEvent<HTMLDivElement>, day: Date, hour: number, half: boolean) => {
-    e.preventDefault();
-    setDragOverSlot(null);
-    const aptId = e.dataTransfer.getData("text/plain");
-    if (!aptId) return;
-    const minutes = half ? 30 : 0;
-    const newTime = `${String(hour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-    onReschedule(aptId, format(day, "yyyy-MM-dd"), newTime);
-  };
-
   return (
     <div className="flex flex-col h-full">
+      {/* Day headers */}
       <div className="grid border-b" style={{ gridTemplateColumns: "60px repeat(7, 1fr)" }}>
         <div className="border-r" />
         {days.map((d) => (
           <div
             key={d.toISOString()}
             className={cn(
-              "px-2 py-2 text-center border-r last:border-r-0",
+              "px-2 py-1.5 text-center border-r last:border-r-0",
               isToday(d) && "bg-primary/5"
             )}
           >
-            <p className="text-xs text-muted-foreground">{format(d, "EEE")}</p>
-            <p
+            <div className="text-xs text-muted-foreground">{format(d, "EEE")}</div>
+            <div
               className={cn(
-                "text-sm font-semibold mt-0.5 w-7 h-7 flex items-center justify-center rounded-full mx-auto",
+                "text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full mx-auto",
                 isToday(d) && "bg-primary text-primary-foreground"
               )}
             >
               {format(d, "d")}
-            </p>
+            </div>
           </div>
         ))}
       </div>
 
+      {/* Time grid */}
       <div ref={ref} className="flex-1 overflow-y-auto relative">
-        <div
-          className="grid relative"
-          style={{
-            gridTemplateColumns: "60px repeat(7, 1fr)",
-            height: `${(END_HOUR - START_HOUR) * HOUR_HEIGHT}px`,
-          }}
-        >
-          <div className="border-r relative">
-            {HOURS.map((hour) => (
-              <div
-                key={hour}
-                className="absolute right-2 text-[10px] text-muted-foreground -translate-y-1/2"
-                style={{ top: `${(hour - START_HOUR) * HOUR_HEIGHT}px` }}
-              >
-                {format(setHours(new Date(), hour), "ha")}
+        <CurrentTimeLine />
+        <div className="grid" style={{ gridTemplateColumns: "60px repeat(7, 1fr)" }}>
+          {/* Time labels */}
+          <div className="border-r">
+            {HOURS.map((h) => (
+              <div key={h} className="h-[60px] pr-2 text-right">
+                <span className="text-[10px] text-muted-foreground relative -top-2">
+                  {format(setHours(new Date(), h), "h a")}
+                </span>
               </div>
             ))}
           </div>
 
+          {/* Day columns */}
           {days.map((d) => {
-            const apts = getAptsForDay(d);
+            const dayApts = getAptsForDay(d);
             const dateKey = format(d, "yyyy-MM-dd");
             return (
               <div key={d.toISOString()} className="relative border-r last:border-r-0">
-                {/* Drop zones — top half and bottom half of each hour */}
-                {HOURS.map((hour) => {
-                  const slotKeyTop = `week-${dateKey}-${hour}-0`;
-                  const slotKeyBot = `week-${dateKey}-${hour}-30`;
+                {HOURS.map((h) => {
+                  const slotKey = `week-${dateKey}-${h}`;
+                  const isOver = dragOverSlot === slotKey;
                   return (
-                    <React.Fragment key={hour}>
-                      <div
-                        className={cn(
-                          "absolute w-full border-t border-border/50 cursor-pointer hover:bg-muted/20 transition-colors",
-                          dragOverSlot === slotKeyTop && "bg-primary/10"
-                        )}
-                        style={{
-                          top: `${(hour - START_HOUR) * HOUR_HEIGHT}px`,
-                          height: `${HOUR_HEIGHT / 2}px`,
-                        }}
-                        onClick={() => onTimeClick(setHours(d, hour))}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = "move";
-                          setDragOverSlot(slotKeyTop);
-                        }}
-                        onDragLeave={() => setDragOverSlot(null)}
-                        onDrop={(e) => handleSlotDrop(e as any, d, hour, false)}
-                      />
-                      <div
-                        className={cn(
-                          "absolute w-full border-t border-border/20 cursor-pointer hover:bg-muted/20 transition-colors",
-                          dragOverSlot === slotKeyBot && "bg-primary/10"
-                        )}
-                        style={{
-                          top: `${(hour - START_HOUR) * HOUR_HEIGHT + HOUR_HEIGHT / 2}px`,
-                          height: `${HOUR_HEIGHT / 2}px`,
-                        }}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = "move";
-                          setDragOverSlot(slotKeyBot);
-                        }}
-                        onDragLeave={() => setDragOverSlot(null)}
-                        onDrop={(e) => handleSlotDrop(e as any, d, hour, true)}
-                      />
-                    </React.Fragment>
+                    <div
+                      key={h}
+                      className={cn(
+                        "h-[60px] border-b hover:bg-muted/20 cursor-pointer transition-colors",
+                        isOver && "bg-primary/10"
+                      )}
+                      onClick={() => onTimeClick(setHours(d, h))}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        setDragOverSlot(slotKey);
+                      }}
+                      onDragLeave={() => setDragOverSlot(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverSlot(null);
+                        const aptId = e.dataTransfer.getData("text/plain");
+                        if (aptId) onReschedule(aptId, dateKey, `${String(h).padStart(2, "0")}:00`);
+                      }}
+                    >
+                      {/* half-hour line */}
+                      <div className="border-b border-dashed border-muted h-[30px]" />
+                    </div>
                   );
                 })}
-
-                {/* Appointments */}
-                {apts.map((apt) => {
-                  const { start } = parseAppointmentTime(apt);
-                  const topMinutes = differenceInMinutes(start, setHours(setMinutes(startOfDay(d), 0), START_HOUR));
-                  const top = (topMinutes / 60) * HOUR_HEIGHT;
-                  const height = (30 / 60) * HOUR_HEIGHT;
+                {/* Appointment blocks */}
+                {dayApts.map((apt) => {
+                  const { start, end } = parseAppointmentTime(apt);
+                  const top = (start.getHours() - START_HOUR) * HOUR_HEIGHT + (start.getMinutes() / 60) * HOUR_HEIGHT;
+                  const height = Math.max((differenceInMinutes(end, start) / 60) * HOUR_HEIGHT, 25);
                   const color = getVetColor(apt.vet_id);
-                  if (top < 0 || top > (END_HOUR - START_HOUR) * HOUR_HEIGHT) return null;
                   return (
                     <DraggableAppointment
                       key={apt.id}
                       apt={apt}
                       className={cn(
-                        "absolute left-0.5 right-0.5 rounded border-l-3 px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden hover:shadow-md transition-shadow z-10",
+                        "absolute left-1 right-1 rounded border-l-2 px-1.5 py-0.5 text-[11px] overflow-hidden z-10",
                         color.bg,
                         color.border,
-                        color.text,
-                        apt.status === "cancelled" && "opacity-40 line-through"
+                        color.text
                       )}
-                      style={{ top: `${top}px`, height: `${height}px`, borderLeftWidth: "3px" }}
+                      style={{ top, height }}
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelectAppointment(apt);
                       }}
                     >
                       <p className="font-medium truncate">{apt.pet?.name}</p>
-                      <p className="truncate opacity-75">{apt.reason}</p>
+                      <p className="truncate opacity-70">{apt.time.slice(0, 5)} · {apt.reason}</p>
                     </DraggableAppointment>
                   );
                 })}
-                {isToday(d) && <CurrentTimeIndicator />}
               </div>
             );
           })}
@@ -727,127 +807,79 @@ const DayGrid = React.forwardRef<
     onReschedule: (aptId: string, newDate: string, newTime: string) => void;
     dragOverSlot: string | null;
     setDragOverSlot: (s: string | null) => void;
+    getVetColor: (vetId: string) => { bg: string; border: string; text: string; dot: string };
   }
->(({ currentDate, appointments, onSelectAppointment, onTimeClick, onReschedule, dragOverSlot, setDragOverSlot }, ref) => {
+>(({ currentDate, appointments: dayApts, onSelectAppointment, onTimeClick, onReschedule, dragOverSlot, setDragOverSlot, getVetColor }, ref) => {
   const dateKey = format(currentDate, "yyyy-MM-dd");
-
-  const handleSlotDrop = (e: DragEvent<HTMLDivElement>, hour: number, half: boolean) => {
-    e.preventDefault();
-    setDragOverSlot(null);
-    const aptId = e.dataTransfer.getData("text/plain");
-    if (!aptId) return;
-    const minutes = half ? 30 : 0;
-    const newTime = `${String(hour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-    onReschedule(aptId, dateKey, newTime);
-  };
-
   return (
     <div className="flex flex-col h-full">
       <div ref={ref} className="flex-1 overflow-y-auto relative">
-        <div
-          className="grid relative"
-          style={{
-            gridTemplateColumns: "60px 1fr",
-            height: `${(END_HOUR - START_HOUR) * HOUR_HEIGHT}px`,
-          }}
-        >
-          <div className="border-r relative">
-            {HOURS.map((hour) => (
-              <div
-                key={hour}
-                className="absolute right-2 text-[10px] text-muted-foreground -translate-y-1/2"
-                style={{ top: `${(hour - START_HOUR) * HOUR_HEIGHT}px` }}
-              >
-                {format(setHours(new Date(), hour), "ha")}
+        <CurrentTimeLine />
+        <div className="grid" style={{ gridTemplateColumns: "60px 1fr" }}>
+          <div className="border-r">
+            {HOURS.map((h) => (
+              <div key={h} className="h-[60px] pr-2 text-right">
+                <span className="text-[10px] text-muted-foreground relative -top-2">
+                  {format(setHours(new Date(), h), "h a")}
+                </span>
               </div>
             ))}
           </div>
-
           <div className="relative">
-            {HOURS.map((hour) => {
-              const slotKeyTop = `day-${dateKey}-${hour}-0`;
-              const slotKeyBot = `day-${dateKey}-${hour}-30`;
+            {HOURS.map((h) => {
+              const slotKey = `day-${dateKey}-${h}`;
+              const isOver = dragOverSlot === slotKey;
               return (
-                <React.Fragment key={hour}>
-                  <div
-                    className={cn(
-                      "absolute w-full border-t border-border/50 cursor-pointer hover:bg-muted/20 transition-colors",
-                      dragOverSlot === slotKeyTop && "bg-primary/10"
-                    )}
-                    style={{
-                      top: `${(hour - START_HOUR) * HOUR_HEIGHT}px`,
-                      height: `${HOUR_HEIGHT / 2}px`,
-                    }}
-                    onClick={onTimeClick}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                      setDragOverSlot(slotKeyTop);
-                    }}
-                    onDragLeave={() => setDragOverSlot(null)}
-                    onDrop={(e) => handleSlotDrop(e as any, hour, false)}
-                  />
-                  <div
-                    className={cn(
-                      "absolute w-full border-t border-border/20 cursor-pointer hover:bg-muted/20 transition-colors",
-                      dragOverSlot === slotKeyBot && "bg-primary/10"
-                    )}
-                    style={{
-                      top: `${(hour - START_HOUR) * HOUR_HEIGHT + HOUR_HEIGHT / 2}px`,
-                      height: `${HOUR_HEIGHT / 2}px`,
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                      setDragOverSlot(slotKeyBot);
-                    }}
-                    onDragLeave={() => setDragOverSlot(null)}
-                    onDrop={(e) => handleSlotDrop(e as any, hour, true)}
-                  />
-                </React.Fragment>
+                <div
+                  key={h}
+                  className={cn(
+                    "h-[60px] border-b hover:bg-muted/20 cursor-pointer transition-colors",
+                    isOver && "bg-primary/10"
+                  )}
+                  onClick={onTimeClick}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOverSlot(slotKey);
+                  }}
+                  onDragLeave={() => setDragOverSlot(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverSlot(null);
+                    const aptId = e.dataTransfer.getData("text/plain");
+                    if (aptId) onReschedule(aptId, dateKey, `${String(h).padStart(2, "0")}:00`);
+                  }}
+                >
+                  <div className="border-b border-dashed border-muted h-[30px]" />
+                </div>
               );
             })}
-
-            {appointments.map((apt) => {
-              const { start } = parseAppointmentTime(apt);
-              const topMinutes = differenceInMinutes(start, setHours(setMinutes(startOfDay(currentDate), 0), START_HOUR));
-              const top = (topMinutes / 60) * HOUR_HEIGHT;
-              const height = (30 / 60) * HOUR_HEIGHT;
+            {dayApts.map((apt) => {
+              const { start, end } = parseAppointmentTime(apt);
+              const top = (start.getHours() - START_HOUR) * HOUR_HEIGHT + (start.getMinutes() / 60) * HOUR_HEIGHT;
+              const height = Math.max((differenceInMinutes(end, start) / 60) * HOUR_HEIGHT, 25);
               const color = getVetColor(apt.vet_id);
-              if (top < 0 || top > (END_HOUR - START_HOUR) * HOUR_HEIGHT) return null;
               return (
                 <DraggableAppointment
                   key={apt.id}
                   apt={apt}
                   className={cn(
-                    "absolute rounded border-l-3 px-2 py-1 text-xs leading-tight overflow-hidden hover:shadow-md transition-shadow z-10",
+                    "absolute left-2 right-2 rounded border-l-2 px-2 py-1 text-xs overflow-hidden z-10",
                     color.bg,
                     color.border,
-                    color.text,
-                    apt.status === "cancelled" && "opacity-40 line-through"
+                    color.text
                   )}
-                  style={{
-                    top: `${top}px`,
-                    height: `${height}px`,
-                    left: "4px",
-                    right: "4px",
-                    borderLeftWidth: "3px",
-                  }}
+                  style={{ top, height }}
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectAppointment(apt);
                   }}
                 >
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">{apt.time}</p>
-                    <p className="font-medium">{apt.pet?.name}</p>
-                    <p className="opacity-75 truncate">— {apt.reason}</p>
-                  </div>
-                  <p className="opacity-60 truncate">{apt.vet?.full_name}</p>
+                  <p className="font-medium">{apt.pet?.name} — {apt.vet?.full_name}</p>
+                  <p className="opacity-70">{apt.time.slice(0, 5)} · {apt.reason}</p>
                 </DraggableAppointment>
               );
             })}
-            {isToday(currentDate) && <CurrentTimeIndicator />}
           </div>
         </div>
       </div>
@@ -856,170 +888,24 @@ const DayGrid = React.forwardRef<
 });
 DayGrid.displayName = "DayGrid";
 
-// ============= Current Time Indicator =============
+// ============= Current Time Line =============
 
-function CurrentTimeIndicator() {
+function CurrentTimeLine() {
   const [now, setNow] = useState(new Date());
-
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
-
-  const minutes = differenceInMinutes(now, setHours(setMinutes(startOfDay(now), 0), START_HOUR));
-  const top = (minutes / 60) * HOUR_HEIGHT;
-
+  const top = (now.getHours() - START_HOUR) * HOUR_HEIGHT + (now.getMinutes() / 60) * HOUR_HEIGHT;
   if (top < 0 || top > (END_HOUR - START_HOUR) * HOUR_HEIGHT) return null;
-
   return (
-    <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: `${top}px` }}>
+    <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top }}>
       <div className="flex items-center">
-        <div className="h-3 w-3 rounded-full bg-destructive -ml-1.5 shrink-0" />
-        <div className="h-[2px] w-full bg-destructive" />
+        <div className="w-2 h-2 rounded-full bg-destructive ml-[56px]" />
+        <div className="flex-1 border-t border-destructive" />
       </div>
     </div>
   );
-}
-
-// ============= Appointment Detail Actions (role-based) =============
-
-function AppointmentDetailActions({
-  apt,
-  onClose,
-  onComplete,
-  onCancel,
-}: {
-  apt: Appointment;
-  onClose: () => void;
-  onComplete: () => void;
-  onCancel: () => void;
-}) {
-  const navigate = useNavigate();
-  const { hasRole } = useAuth();
-  const isAdmin = hasRole(["admin"]);
-  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-
-  if (apt.status === "scheduled") {
-    return (
-      <>
-        <div className="flex flex-wrap gap-2 border-t pt-3">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              onClose();
-              navigate(`/appointments/new?edit=${apt.id}`);
-            }}
-          >
-            <Pencil className="mr-1.5 h-3 w-3" /> Edit
-          </Button>
-          {isAdmin && (
-            <>
-              <Button size="sm" variant="outline" onClick={() => setShowCompleteConfirm(true)}>
-                <CheckCircle className="mr-1.5 h-3 w-3 text-green-500" /> Complete
-              </Button>
-              <Button size="sm" variant="outline" className="text-destructive" onClick={() => setShowCancelConfirm(true)}>
-                <XCircle className="mr-1.5 h-3 w-3" /> Cancel
-              </Button>
-            </>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              onClose();
-              navigate(`/pets/${apt.pet_id}`);
-            }}
-          >
-            <PawPrint className="mr-1.5 h-3 w-3" /> View Pet
-          </Button>
-        </div>
-        <ConfirmDialog
-          open={showCompleteConfirm}
-          onOpenChange={setShowCompleteConfirm}
-          title="Complete Appointment"
-          description="Are you sure you want to mark this appointment as completed?"
-          onConfirm={onComplete}
-        />
-        <ConfirmDialog
-          open={showCancelConfirm}
-          onOpenChange={setShowCancelConfirm}
-          title="Cancel Appointment"
-          description="Are you sure you want to cancel this appointment? This cannot be undone."
-          onConfirm={onCancel}
-          destructive
-        />
-      </>
-    );
-  }
-
-  if (apt.status === "completed") {
-    const followUpRecord = getFollowUpForAppointment(apt.id);
-    return (
-      <div className="space-y-3 border-t pt-3">
-        {followUpRecord && followUpRecord.follow_up && (
-          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-primary shrink-0" />
-              <span className="text-sm font-semibold text-primary">
-                {followUpRecord.follow_up.status === "conditional" ? "Conditional Follow-up" : "Follow-up Requested"}
-              </span>
-            </div>
-            <div className="text-sm space-y-1 pl-6">
-              {followUpRecord.follow_up.urgency && (
-                <p><span className="text-muted-foreground">Urgency:</span> {URGENCY_LABELS[followUpRecord.follow_up.urgency] || followUpRecord.follow_up.urgency}</p>
-              )}
-              {followUpRecord.follow_up.reason && (
-                <p><span className="text-muted-foreground">Reason:</span> {followUpRecord.follow_up.reason}</p>
-              )}
-              {followUpRecord.follow_up.condition_note && (
-                <p><span className="text-muted-foreground">Condition:</span> {followUpRecord.follow_up.condition_note}</p>
-              )}
-              <p><span className="text-muted-foreground">Requested by:</span> {followUpRecord.vet?.full_name}</p>
-            </div>
-            {isAdmin && (
-              <Button
-                size="sm"
-                className="ml-6 mt-1"
-                onClick={() => {
-                  onClose();
-                  navigate(`/appointments/new?pet_id=${apt.pet_id}&reason=${encodeURIComponent("Follow-up: " + (followUpRecord.follow_up?.reason || apt.reason))}`);
-                }}
-              >
-                <CalendarPlus className="mr-1.5 h-3 w-3" /> Schedule Follow-up
-              </Button>
-            )}
-          </div>
-        )}
-        <div className="flex flex-wrap gap-2">
-          {isAdmin && (
-            <Button
-              size="sm"
-              onClick={() => {
-                onClose();
-                navigate(`/billing/new?pet_id=${apt.pet_id}&reason=${encodeURIComponent(apt.reason)}`);
-              }}
-            >
-              Generate Invoice
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              onClose();
-              navigate(`/pets/${apt.pet_id}`);
-            }}
-          >
-            <PawPrint className="mr-1.5 h-3 w-3" /> View Pet
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
 }
 
 // ============= Appointment Detail =============
@@ -1029,57 +915,109 @@ function AppointmentDetail({
   onClose,
   onComplete,
   onCancel,
+  getVetColor,
 }: {
   apt: Appointment;
   onClose: () => void;
   onComplete: () => void;
   onCancel: () => void;
+  getVetColor: (vetId: string) => { bg: string; border: string; text: string; dot: string };
 }) {
-  const color = getVetColor(apt.vet_id);
   const navigate = useNavigate();
+  const color = getVetColor(apt.vet_id);
+  const followUp = getFollowUpForAppointment(apt.id);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   return (
     <>
       <DialogHeader>
-        <div className="flex items-center gap-2">
-          <span className={cn("h-3 w-3 rounded-full shrink-0", color.dot)} />
-          <DialogTitle className="text-base">{apt.reason}</DialogTitle>
-        </div>
+        <DialogTitle className="flex items-center gap-2">
+          <PawPrint className="h-5 w-5" />
+          {apt.pet?.name || "Appointment"}
+        </DialogTitle>
       </DialogHeader>
-
       <div className="space-y-4 mt-2">
-        <div className="grid grid-cols-[20px_1fr] gap-x-3 gap-y-3 text-sm">
-          <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
-          <div>
-            <p className="font-medium">{format(parseISO(apt.date), "EEEE, MMMM d, yyyy")}</p>
-            <p className="text-muted-foreground">{apt.time} – 30 min</p>
+        <div className={cn("rounded-md p-3 border-l-4", color.bg, color.border)}>
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="font-semibold text-sm">{apt.reason}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {format(parseISO(apt.date), "EEEE, MMMM d, yyyy")} at {apt.time}
+              </p>
+            </div>
+            <StatusBadge status={apt.status} />
           </div>
-
-          <PawPrint className="h-4 w-4 text-muted-foreground mt-0.5" />
-          <div>
-            <p className="font-medium">{apt.pet?.name}</p>
-            <p className="text-muted-foreground">
-              {apt.pet?.species} · {apt.pet?.breed} · Owner: {apt.pet?.owner?.full_name}
-            </p>
-          </div>
-
-          <User className="h-4 w-4 text-muted-foreground mt-0.5" />
-          <p className="font-medium">{apt.vet?.full_name}</p>
         </div>
-
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="flex items-start gap-2">
+            <PawPrint className="h-4 w-4 text-muted-foreground mt-0.5" />
+            <div>
+              <p className="text-xs text-muted-foreground">Pet</p>
+              <p className="font-medium">{apt.pet?.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {apt.pet?.species} · {apt.pet?.breed || "Mixed"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+            <div>
+              <p className="text-xs text-muted-foreground">Veterinarian</p>
+              <p className="font-medium">{apt.vet?.full_name || "Unassigned"}</p>
+            </div>
+          </div>
+        </div>
         {apt.notes && (
-          <div className="rounded-md bg-muted/50 p-3 text-sm">
-            <p className="text-muted-foreground text-xs mb-1">Notes</p>
-            <p>{apt.notes}</p>
+          <div className="text-sm">
+            <p className="text-xs text-muted-foreground mb-1">Notes</p>
+            <p className="bg-muted/50 rounded p-2 text-xs">{apt.notes}</p>
           </div>
         )}
-
-        <div className="flex items-center gap-2">
-          <StatusBadge status={apt.status} />
+        {followUp && (
+          <div className="rounded border border-warning/30 bg-warning/5 p-2 text-xs">
+            <p className="font-medium text-warning flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              Follow-up {followUp.follow_up?.urgency ? URGENCY_LABELS[followUp.follow_up.urgency] : "recommended"}
+            </p>
+            {followUp.follow_up?.reason && <p className="mt-1 text-muted-foreground">{followUp.follow_up.reason}</p>}
+          </div>
+        )}
+        <div className="flex gap-2 pt-2">
+          {apt.status === "scheduled" && (
+            <>
+              <Button
+                className="flex-1"
+                onClick={() => navigate(`/consultation/${apt.id}`)}
+              >
+                <Stethoscope className="mr-1 h-3 w-3" /> Start Consultation
+              </Button>
+              <Button variant="outline" size="icon" onClick={() => navigate(`/appointments/${apt.id}/edit`)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" onClick={() => setShowCancelConfirm(true)}>
+                <XCircle className="mr-1 h-3 w-3" /> Cancel
+              </Button>
+            </>
+          )}
+          {apt.status === "completed" && (
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => navigate(`/pets/${apt.pet_id}`)}
+            >
+              <PawPrint className="mr-1 h-3 w-3" /> View Pet Record
+            </Button>
+          )}
         </div>
-
-        <AppointmentDetailActions apt={apt} onClose={onClose} onComplete={onComplete} onCancel={onCancel} />
       </div>
+      <ConfirmDialog
+        open={showCancelConfirm}
+        onOpenChange={setShowCancelConfirm}
+        title="Cancel Appointment"
+        description={`Are you sure you want to cancel ${apt.pet?.name}'s appointment?`}
+        onConfirm={onCancel}
+        destructive
+      />
     </>
   );
 }

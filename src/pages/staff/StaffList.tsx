@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getStaff, deleteStaff } from "@/lib/api-services";
@@ -10,9 +10,10 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Edit, Trash2, CheckCircle2, XCircle } from "lucide-react";
+import { Search, Edit, Trash2, CheckCircle2, XCircle, Filter } from "lucide-react";
 
 export default function StaffList() {
   const navigate = useNavigate();
@@ -21,6 +22,9 @@ export default function StaffList() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [specialtyFilter, setSpecialtyFilter] = useState("all");
 
   const { data: staffRes } = useQuery({
     queryKey: ["staff"],
@@ -28,6 +32,13 @@ export default function StaffList() {
   });
 
   const users = staffRes?.data ?? mockUsers;
+
+  // Collect unique specialties
+  const allSpecialties = useMemo(() => {
+    const set = new Set<string>();
+    users.forEach((u) => u.specialties?.forEach((s) => set.add(s)));
+    return Array.from(set).sort();
+  }, [users]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteStaff(id),
@@ -39,12 +50,20 @@ export default function StaffList() {
     },
   });
 
-  const filtered = users.filter(
-    (u) =>
+  const filtered = users.filter((u) => {
+    const matchSearch =
       u.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      u.role.toLowerCase().includes(search.toLowerCase())
-  );
+      u.email.toLowerCase().includes(search.toLowerCase());
+    const matchRole = roleFilter === "all" || u.role === roleFilter;
+    const matchStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" && u.is_active) ||
+      (statusFilter === "inactive" && !u.is_active);
+    const matchSpecialty =
+      specialtyFilter === "all" ||
+      (u.specialties && u.specialties.includes(specialtyFilter));
+    return matchSearch && matchRole && matchStatus && matchSpecialty;
+  });
 
   const deleteName = users.find((u) => u.id === deleteId)?.full_name;
   const isSelfDelete = deleteId === currentUser?.id;
@@ -61,12 +80,59 @@ export default function StaffList() {
     setDeleteId(userId);
   };
 
+  const hasFilters = roleFilter !== "all" || statusFilter !== "all" || specialtyFilter !== "all";
+
   return (
     <div className="space-y-4">
       <PageHeader title="Staff Management" actionLabel="Add Staff" onAction={() => navigate("/staff/new")} />
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search staff..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Search staff..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        </div>
+        <Select value={roleFilter} onValueChange={setRoleFilter}>
+          <SelectTrigger className="w-[130px]">
+            <SelectValue placeholder="All Roles" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Roles</SelectItem>
+            <SelectItem value="admin">Admin</SelectItem>
+            <SelectItem value="vet">Vet</SelectItem>
+            <SelectItem value="staff">Staff</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[130px]">
+            <SelectValue placeholder="All Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
+        {allSpecialties.length > 0 && (
+          <Select value={specialtyFilter} onValueChange={setSpecialtyFilter}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="All Specialties" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Specialties</SelectItem>
+              {allSpecialties.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {hasFilters && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => { setRoleFilter("all"); setStatusFilter("all"); setSpecialtyFilter("all"); }}
+          >
+            Clear filters
+          </Button>
+        )}
       </div>
 
       {filtered.length === 0 ? (

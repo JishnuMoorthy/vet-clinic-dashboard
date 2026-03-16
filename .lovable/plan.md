@@ -1,119 +1,72 @@
 
 
-# QA Audit & Fix: Supabase Data + Smart Banner
+# Services Catalog and Medication Billing Integration
 
 ## Overview
-The uploaded plan has 4 parts: (1) smart Demo/Live banner, (2) systematic QA of every page to use Supabase, (3) field mappings, (4) error handling. Most pages already use Supabase via `api-services.ts`. Four components still read/write mock data directly and need fixing.
+
+Create a Services Catalog that admins can manage (add/edit/delete services with prices), and integrate it into the invoice creation flow so staff can search and auto-populate line items. Also integrate inventory medications as billable items with automatic price population.
 
 ---
 
-## PART 1: Smart Demo/Live Banner
+## What Changes
 
-**File: `src/components/DemoBanner.tsx`**
+### 1. New data types and mock data
 
-Replace the hardcoded orange banner with logic that checks the logged-in user:
-- If `user.id` does NOT start with `"mock-"` (i.e., came from Supabase with a real `clinic_id`): show a **green** banner: "✅ Live Mode — Connected to your clinic database." Auto-dismiss after 5 seconds.
-- If `user.id` starts with `"mock-"` (mock fallback login): show a **persistent orange** banner: "⚠️ Demo Mode — You're viewing sample data. Changes won't be saved."
-- Uses `useAuth()` to get the current user.
-
-**File: `src/components/AppLayout.tsx`** — No changes needed (already renders `<DemoBanner />` on every page inside the layout).
-
----
-
-## PART 2: Fix Pages Still Using Mock Data
-
-### Already passing QA (use Supabase via api-services.ts):
-- Dashboard (`/dashboard`) — ✅ uses `getDashboardStats()`
-- Pets (`/pets`, `/pets/:id`, `/pets/new`) — ✅ uses `getPets`, `getPet`, `createPet`, `updatePet`, `deletePet`
-- Owners (`/owners`, `/owners/:id`, `/owners/new`) — ✅ uses `getOwners`, `getOwner`, `createOwner`, `updateOwner`, `deleteOwner`
-- Appointments (`/appointments`) — ✅ uses `getAppointments`, `createAppointment`, `updateAppointment`, `deleteAppointment`
-- Billing (`/billing`) — ✅ uses `getInvoices`, `getInvoice`, `createInvoice`, `updateInvoice`
-- Inventory (`/inventory`) — ✅ uses `getInventory`, `createInventoryItem`, `updateInventoryItem`, `deleteInventoryItem`
-- Staff (`/staff`) — ✅ uses `getStaff`, `createStaff`, `updateStaff`, `deleteStaff`
-- Clinic Dashboard (`/operations`) — ✅ uses all api-services functions
-- Global Search — ✅ uses `getOwners`, `getPets`
-- Settings — ✅ reads from `useAuth()` user (which comes from Supabase login)
-
-### Needs fixing:
-
-#### 1. ConsultationsList.tsx (Today's Patients)
-Currently reads `mockAppointments`, `mockUsers`, `mockMedicalRecords` directly.
-
-Fix:
-- Use `useQuery` with `getAppointments({ date_from: today, date_to: today })` to fetch today's appointments from Supabase
-- Use `useQuery` with `getStaff()` to fetch vets list for the filter dropdown
-- Medical records: query `medical_records` table filtered by today's appointment IDs (add a helper function or inline query), falling back to empty array
-- Keep mock data as fallback in the query's `placeholderData`
-
-#### 2. WalkInModal.tsx
-Currently calls `addOwner()`, `addPet()`, `addAppointment()` from mock-data, and reads `mockUsers` for vet list.
-
-Fix:
-- Replace `addOwner` with `createOwner()` from api-services
-- Replace `addPet` with `createPet()` from api-services
-- Replace `addAppointment` with `createAppointment()` from api-services
-- Replace `mockUsers.filter(u => u.role === "vet")` with a `useQuery` call to `getStaff()` and filter for vets
-- Make the save handler `async` to await all three Supabase inserts
-- Show toast error with actual error message on failure
-
-#### 3. InlineOwnerModal.tsx
-Currently calls `addOwner()` from mock-data.
-
-Fix:
-- Replace `addOwner(...)` with `await createOwner(...)` from api-services
-- Make `handleSave` async
-- Use the returned owner's real ID from Supabase in `onCreated(newOwner.id)`
-- Show toast error on failure
-
-#### 4. ServicesCatalog.tsx
-Currently uses `mockServices`, `addService`, `updateService`, `deleteService` from mock-data. There is no `services` table in Supabase.
-
-Fix: Since there's no services table in the DB, we have two options. The plan says "if those tables don't exist yet, just show 'No records found' instead of mock data" — but that applies to pet detail sub-tables. For ServicesCatalog, we should **create a `services` table** via migration, then wire up CRUD. Alternatively, keep it on mock data for now since the plan focuses on existing tables.
-
-**Decision:** Create a `services` DB table via migration to match the existing `ServiceItem` type, then replace mock CRUD with Supabase queries. This aligns with the plan's goal of "every feature uses real Supabase data."
-
-**Migration SQL:**
-```sql
-CREATE TABLE public.services (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  clinic_id uuid NOT NULL,
-  name varchar NOT NULL,
-  category varchar DEFAULT 'other',
-  price numeric NOT NULL DEFAULT 0,
-  description text,
-  is_active boolean DEFAULT true,
-  is_deleted boolean DEFAULT false,
-  deleted_at timestamp,
-  created_at timestamp DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp DEFAULT CURRENT_TIMESTAMP
-);
+**`src/types/api.ts`** -- Add a `ServiceItem` interface:
+```
+interface ServiceItem {
+  id: string;
+  name: string;
+  category: "consultation" | "procedure" | "diagnostic" | "vaccination" | "grooming" | "surgery" | "medication" | "other";
+  price: number;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 ```
 
-Then rewrite ServicesCatalog.tsx to use `supabase.from('services')` queries with `clinic_id` and `is_deleted` filters.
+**`src/lib/mock-data.ts`** -- Add a mutable `mockServices` array with ~15 predefined services covering:
+- Consultations (General Consultation: 500, Follow-up: 300, Emergency: 1500)
+- Procedures (Dental Cleaning: 3000, Spay/Neuter: 5000, Wound Dressing: 800)
+- Diagnostics (Blood Panel: 3500, X-Ray: 2500, Ultrasound: 4000, Urinalysis: 1200)
+- Vaccinations (Rabies: 1500, DHPP: 1200, Deworming: 300)
+- Grooming (Full Grooming: 1200, Nail Trim: 200)
 
----
+Also expose `addService` and `updateService` helper functions for runtime CRUD.
 
-## PART 3: Field Mappings
+### 2. Services Catalog management page (admin only)
 
-Already implemented correctly in `api-services.ts` mappers:
-- `name` → `full_name` (users & owners) ✅
-- `health_status` → `status` (pets) ✅
-- `weight_kg` → `weight` (pets) ✅
-- `appointment_date` → `date`, `appointment_time` → `time` ✅
-- `item_name` → `name`, `item_type` → `category` (inventory) ✅
-- Inventory status derived logic ✅
+**New: `src/pages/services/ServicesCatalog.tsx`** -- A table-based management page:
+- Search/filter bar at the top
+- Table columns: Service Name, Category, Price, Status, Actions (Edit/Delete)
+- "Add Service" button opens a dialog with fields: Name (req), Category (select), Price (req), Description (opt)
+- Inline edit via the same dialog pattern
+- Delete with ConfirmDialog
+- "Other" category option allows free-text for custom services
 
-No changes needed here.
+**`src/App.tsx`** -- Add route: `/services` under admin-protected routes
 
----
+**`src/components/AppSidebar.tsx`** -- Add "Services" nav item under Administration section (between Billing and Inventory), using the `ClipboardList` icon
 
-## PART 4: Error Handling
+### 3. Searchable service picker in Invoice Form
 
-Already implemented in `api-services.ts`:
-- All queries have `try/catch` with `console.warn("[Supabase fallback] <table> query failed: <error>")` ✅
-- Need to verify that create/update/delete failures show toast errors to users — this is handled at the component level via `onError` in `useMutation`. Will verify and add where missing.
+**`src/pages/billing/InvoiceForm.tsx`** -- Replace the plain text `<Input>` for the "Service / Item" column with a searchable combobox (using `cmdk`):
+- When user starts typing, a dropdown shows matching services from `mockServices` + matching medications from `mockInventory` (filtered by category "Medications")
+- Results grouped under "Services" and "Medications" headings
+- Selecting a service auto-fills the description AND the unit price
+- User can still type free text for custom items (the "Other" option)
+- Price field remains editable after auto-fill (admin can override)
+- An "Other (custom)" option always appears at the bottom, keeping the current free-text behavior
 
-For the newly fixed components (WalkInModal, InlineOwnerModal, ConsultationsList), ensure toast errors show the actual error message on failure.
+### 4. Medication integration in billing
+
+Medications from `mockInventory` (category "Medications") appear as a separate group in the service search dropdown in the invoice form. When selected:
+- Description auto-fills with the medication name
+- Price auto-fills from the inventory item's `unit_price`
+- Quantity defaults to 1 but is editable
+
+This means admins don't need to remember medication prices -- they search "Amoxicillin" and it populates automatically.
 
 ---
 
@@ -121,11 +74,21 @@ For the newly fixed components (WalkInModal, InlineOwnerModal, ConsultationsList
 
 | File | Action | Description |
 |------|--------|-------------|
-| `src/components/DemoBanner.tsx` | Edit | Smart green/orange banner based on user source |
-| `src/pages/consultation/ConsultationsList.tsx` | Edit | Replace mock data with Supabase queries via api-services |
-| `src/components/WalkInModal.tsx` | Edit | Replace mock CRUD with api-services functions |
-| `src/components/InlineOwnerModal.tsx` | Edit | Replace `addOwner` with `createOwner` from api-services |
-| `src/pages/services/ServicesCatalog.tsx` | Edit | Replace mock CRUD with Supabase queries |
-| `src/lib/api-services.ts` | Edit | Add `getServices`, `createService`, `updateService`, `deleteService` functions |
-| DB Migration | Create | Add `services` table |
+| `src/types/api.ts` | Edit | Add `ServiceItem` interface |
+| `src/lib/mock-data.ts` | Edit | Add `mockServices` array with ~15 services + helper functions |
+| `src/pages/services/ServicesCatalog.tsx` | Create | Admin CRUD page for services catalog |
+| `src/pages/billing/InvoiceForm.tsx` | Edit | Replace line item description input with searchable combobox that searches services + medications |
+| `src/App.tsx` | Edit | Add `/services` route (admin-protected) |
+| `src/components/AppSidebar.tsx` | Edit | Add "Services" link in Administration nav |
+
+---
+
+## Technical Notes
+
+- The service picker in `InvoiceForm` uses the existing `cmdk` package (already installed) wrapped in a `Popover` for each line item's description field
+- Searching combines `mockServices.filter(...)` and `mockInventory.filter(i => i.category === "Medications")` results into grouped dropdown sections
+- When a service/medication is selected, both `description` and `unit_price` fields update via the existing `updateItem()` function
+- The "Other (custom)" fallback ensures backward compatibility -- users can always type a custom description with a manual price
+- The services catalog page follows the same table + dialog pattern used in `InventoryList.tsx` and `StaffList.tsx`
+- Mock services are exported as a mutable array (`let`) with `addService`/`updateService` helpers, matching the pattern used for `mockOwners` and `mockPets`
 

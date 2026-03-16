@@ -846,3 +846,70 @@ export async function deleteStaff(id: string): Promise<void> {
     console.warn("[DeleteStaff] Supabase failed", err);
   }
 }
+
+// ─── Services ─────────────────────────────────────────────────────────────────
+
+export async function getServices() {
+  try {
+    const clinicId = getClinicId();
+    if (!clinicId) throw new Error("No clinic");
+    const { data, error } = await supabase.from("services").select("*")
+      .eq("clinic_id", clinicId).eq("is_deleted", false)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.warn("[Services] Supabase failed, returning empty", err);
+    return [];
+  }
+}
+
+export async function createService(data: any): Promise<any> {
+  try {
+    const clinicId = getClinicId();
+    if (!clinicId) throw new Error("No clinic");
+    const { data: row, error } = await supabase.from("services").insert({
+      clinic_id: clinicId,
+      name: data.name || "",
+      category: data.category || "other",
+      price: data.price ?? 0,
+      description: data.description || null,
+      is_active: data.is_active ?? true,
+    }).select().single();
+    if (error) throw error;
+    return row;
+  } catch (err) {
+    console.warn("[CreateService] Supabase failed", err);
+    throw err;
+  }
+}
+
+export async function updateService(id: string, data: any): Promise<any> {
+  try {
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.category !== undefined) updateData.category = data.category;
+    if (data.price !== undefined) updateData.price = data.price;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.is_active !== undefined) updateData.is_active = data.is_active;
+
+    const { data: row, error } = await supabase.from("services")
+      .update(updateData).eq("id", id).select().single();
+    if (error) throw error;
+    return row;
+  } catch (err) {
+    console.warn("[UpdateService] Supabase failed", err);
+    throw err;
+  }
+}
+
+export async function deleteService(id: string): Promise<void> {
+  try {
+    const { error } = await supabase.from("services")
+      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
+    if (error) throw error;
+  } catch (err) {
+    console.warn("[DeleteService] Supabase failed", err);
+    throw err;
+  }
+}

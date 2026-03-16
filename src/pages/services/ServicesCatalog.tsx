@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { mockServices, addService, updateService, deleteService } from "@/lib/mock-data";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getServices, createService, updateService, deleteService } from "@/lib/api-services";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -39,17 +40,42 @@ const emptyForm: FormState = { name: "", category: "consultation", price: "", de
 
 export default function ServicesCatalog() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [, forceRender] = useState(0);
 
-  const filtered = mockServices.filter(
-    (s) =>
+  const { data: services = [] } = useQuery({
+    queryKey: ["services"],
+    queryFn: getServices,
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["services"] });
+
+  const createMut = useMutation({
+    mutationFn: (data: any) => createService(data),
+    onSuccess: () => { toast({ title: "Service added" }); invalidate(); setDialogOpen(false); },
+    onError: (err: any) => toast({ title: "Failed to add service", description: err?.message, variant: "destructive" }),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => updateService(id, data),
+    onSuccess: () => { toast({ title: "Service updated" }); invalidate(); setDialogOpen(false); },
+    onError: (err: any) => toast({ title: "Failed to update service", description: err?.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteService(id),
+    onSuccess: () => { toast({ title: "Service deleted" }); invalidate(); setDeleteId(null); },
+    onError: (err: any) => toast({ title: "Failed to delete service", description: err?.message, variant: "destructive" }),
+  });
+
+  const filtered = services.filter(
+    (s: any) =>
       s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.category.toLowerCase().includes(search.toLowerCase())
+      (s.category || "").toLowerCase().includes(search.toLowerCase())
   );
 
   const openAdd = () => {
@@ -59,10 +85,10 @@ export default function ServicesCatalog() {
   };
 
   const openEdit = (id: string) => {
-    const svc = mockServices.find((s) => s.id === id);
+    const svc = services.find((s: any) => s.id === id);
     if (!svc) return;
     setEditId(id);
-    setForm({ name: svc.name, category: svc.category, price: svc.price.toString(), description: svc.description || "", is_active: svc.is_active });
+    setForm({ name: svc.name, category: (svc.category || "other") as ServiceCategory, price: svc.price.toString(), description: svc.description || "", is_active: svc.is_active });
     setDialogOpen(true);
   };
 
@@ -71,33 +97,12 @@ export default function ServicesCatalog() {
       toast({ title: "Name and a valid price are required", variant: "destructive" });
       return;
     }
-    const now = new Date().toISOString();
+    const payload = { name: form.name, category: form.category, price: parseFloat(form.price), description: form.description || undefined, is_active: form.is_active };
     if (editId) {
-      updateService(editId, { name: form.name, category: form.category, price: parseFloat(form.price), description: form.description || undefined, is_active: form.is_active });
-      toast({ title: "Service updated" });
+      updateMut.mutate({ id: editId, data: payload });
     } else {
-      addService({
-        id: `svc-${Date.now()}`,
-        name: form.name,
-        category: form.category,
-        price: parseFloat(form.price),
-        description: form.description || undefined,
-        is_active: form.is_active,
-        created_at: now,
-        updated_at: now,
-      });
-      toast({ title: "Service added" });
+      createMut.mutate(payload);
     }
-    setDialogOpen(false);
-    forceRender((n) => n + 1);
-  };
-
-  const handleDelete = () => {
-    if (!deleteId) return;
-    deleteService(deleteId);
-    toast({ title: "Service deleted" });
-    setDeleteId(null);
-    forceRender((n) => n + 1);
   };
 
   return (
@@ -124,7 +129,7 @@ export default function ServicesCatalog() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((svc) => (
+              {filtered.map((svc: any) => (
                 <TableRow key={svc.id}>
                   <TableCell>
                     <div>
@@ -135,7 +140,7 @@ export default function ServicesCatalog() {
                   <TableCell>
                     <Badge variant="secondary" className="capitalize">{svc.category}</Badge>
                   </TableCell>
-                  <TableCell className="text-right font-medium">₹{svc.price.toLocaleString()}</TableCell>
+                  <TableCell className="text-right font-medium">₹{Number(svc.price).toLocaleString()}</TableCell>
                   <TableCell>
                     <Badge variant={svc.is_active ? "default" : "outline"}>
                       {svc.is_active ? "Active" : "Inactive"}
@@ -158,7 +163,6 @@ export default function ServicesCatalog() {
         </div>
       )}
 
-      {/* Add / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -195,7 +199,9 @@ export default function ServicesCatalog() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave}>{editId ? "Save Changes" : "Add Service"}</Button>
+            <Button onClick={handleSave} disabled={createMut.isPending || updateMut.isPending}>
+              {editId ? "Save Changes" : "Add Service"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -205,7 +211,7 @@ export default function ServicesCatalog() {
         onOpenChange={() => setDeleteId(null)}
         title="Delete Service"
         description="Are you sure you want to delete this service? This cannot be undone."
-        onConfirm={handleDelete}
+        onConfirm={() => deleteId && deleteMut.mutate(deleteId)}
         destructive
       />
     </div>

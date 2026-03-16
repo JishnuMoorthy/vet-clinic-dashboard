@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { addOwner, addPet, addAppointment, mockUsers } from "@/lib/mock-data";
+import { createOwner, createPet, createAppointment, getStaff } from "@/lib/api-services";
 import { logAction } from "@/lib/audit-log";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -18,68 +19,57 @@ interface Props {
 export function WalkInModal({ open, onOpenChange, onCreated }: Props) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const vets = mockUsers.filter((u) => u.role === "vet");
   const [form, setForm] = useState({ ownerName: "", phone: "", petName: "", species: "Dog", vet_id: "", reason: "Walk-in" });
   const [isSaving, setIsSaving] = useState(false);
 
+  const { data: staffData } = useQuery({
+    queryKey: ["staff"],
+    queryFn: () => getStaff(),
+  });
+  const vets = (staffData?.data || []).filter((u) => u.role === "vet");
+
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.ownerName || !form.phone || !form.petName || !form.vet_id) {
       toast({ title: "Please fill Owner Name, Phone, Pet Name, and Doctor", variant: "destructive" });
       return;
     }
     setIsSaving(true);
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const ownerId = `owner-${Date.now()}`;
-    const petId = `pet-${Date.now()}`;
-    const aptId = `apt-${Date.now()}`;
+    try {
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-    const newOwner = {
-      id: ownerId,
-      full_name: form.ownerName,
-      phone: form.phone,
-      pets_count: 1,
-      created_at: now.toISOString(),
-      updated_at: now.toISOString(),
-    };
-    addOwner(newOwner);
+      const newOwner = await createOwner({
+        full_name: form.ownerName,
+        phone: form.phone,
+      });
 
-    const newPet = {
-      id: petId,
-      name: form.petName,
-      species: form.species,
-      status: "active",
-      owner_id: ownerId,
-      owner: newOwner,
-      created_at: now.toISOString(),
-      updated_at: now.toISOString(),
-    };
-    addPet(newPet);
+      const newPet = await createPet({
+        name: form.petName,
+        species: form.species,
+        owner_id: newOwner.id,
+      });
 
-    const vet = mockUsers.find((u) => u.id === form.vet_id) || mockUsers[1];
-    const newApt = {
-      id: aptId,
-      pet_id: petId,
-      pet: newPet as any,
-      vet_id: vet.id,
-      vet,
-      date: today,
-      time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
-      reason: form.reason || "Walk-in",
-      status: "scheduled" as const,
-      created_at: now.toISOString(),
-      updated_at: now.toISOString(),
-    };
-    addAppointment(newApt);
+      const newApt = await createAppointment({
+        pet_id: newPet.id,
+        vet_id: form.vet_id,
+        date: today,
+        time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
+        reason: form.reason || "Walk-in",
+        status: "scheduled",
+      });
 
-    logAction({ actor_id: user?.id || "unknown", action_type: "walk_in_create", entity_type: "appointment", entity_id: aptId, metadata: { ownerId, petId } });
-    toast({ title: `Walk-in registered: ${form.petName}`, description: `Owner: ${form.ownerName}` });
-    setForm({ ownerName: "", phone: "", petName: "", species: "Dog", vet_id: "", reason: "Walk-in" });
-    setIsSaving(false);
-    onOpenChange(false);
-    onCreated?.();
+      logAction({ actor_id: user?.id || "unknown", action_type: "walk_in_create", entity_type: "appointment", entity_id: newApt.id, metadata: { ownerId: newOwner.id, petId: newPet.id } });
+      toast({ title: `Walk-in registered: ${form.petName}`, description: `Owner: ${form.ownerName}` });
+      setForm({ ownerName: "", phone: "", petName: "", species: "Dog", vet_id: "", reason: "Walk-in" });
+      onOpenChange(false);
+      onCreated?.();
+    } catch (err: any) {
+      toast({ title: "Walk-in registration failed", description: err?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -119,7 +109,7 @@ export function WalkInModal({ open, onOpenChange, onCreated }: Props) {
               <SelectTrigger><SelectValue placeholder="Select doctor" /></SelectTrigger>
               <SelectContent>
                 {vets.map((v) => (
-                  <SelectItem key={v.id} value={v.id}>{v.full_name}{v.specialties?.length ? ` · ${v.specialties.join(", ")}` : ""}</SelectItem>
+                  <SelectItem key={v.id} value={v.id}>{v.full_name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

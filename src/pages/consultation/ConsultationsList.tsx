@@ -1,7 +1,9 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, parseISO, isToday } from "date-fns";
-import { mockAppointments, mockUsers, mockMedicalRecords } from "@/lib/mock-data";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { getAppointments, getStaff } from "@/lib/api-services";
+import { supabase, getClinicId } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -17,7 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Clock,
   PawPrint,
   User,
   Stethoscope,
@@ -29,10 +30,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const VET_COLORS: Record<string, string> = {
-  "mock-vet-001": "border-l-blue-500",
-  "mock-vet-002": "border-l-purple-500",
-};
+const VET_COLORS: Record<string, string> = {};
 
 export default function ConsultationsList() {
   const navigate = useNavigate();
@@ -40,23 +38,49 @@ export default function ConsultationsList() {
   const isAdmin = hasRole(["admin"]);
   const [vetFilter, setVetFilter] = useState<string>("all");
   const [showWalkIn, setShowWalkIn] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  const vets = mockUsers.filter((u) => u.role === "vet");
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  const { data: staffData } = useQuery({
+    queryKey: ["staff"],
+    queryFn: () => getStaff(),
+  });
+  const vets = (staffData?.data || []).filter((u) => u.role === "vet");
+
+  const { data: apptData, refetch: refetchAppts } = useQuery({
+    queryKey: ["consultations-today", today],
+    queryFn: () => getAppointments({ date_from: today, date_to: today, limit: 100 }),
+  });
+
+  // Fetch medical records for follow-up badges
+  const appointmentIds = (apptData?.data || []).filter(a => a.status === "completed").map(a => a.id);
+  const { data: medRecords } = useQuery({
+    queryKey: ["medical-records-today", appointmentIds],
+    queryFn: async () => {
+      if (appointmentIds.length === 0) return [];
+      const clinicId = getClinicId();
+      const { data } = await supabase
+        .from("medical_records")
+        .select("appointment_id, notes")
+        .eq("clinic_id", clinicId)
+        .eq("is_deleted", false)
+        .in("appointment_id", appointmentIds);
+      return data || [];
+    },
+    enabled: appointmentIds.length > 0,
+  });
 
   const todaysAppointments = useMemo(() => {
-    let apts = mockAppointments.filter((a) => isToday(parseISO(a.date)));
+    let apts = apptData?.data || [];
 
-    // Vets see only their own; admins can filter
     if (!isAdmin && user) {
       apts = apts.filter((a) => a.vet_id === user.id);
     } else if (isAdmin && vetFilter !== "all") {
       apts = apts.filter((a) => a.vet_id === vetFilter);
     }
 
-    return apts.sort((a, b) => a.time.localeCompare(b.time));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, user, vetFilter, refreshKey]);
+    return apts.sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+  }, [apptData, isAdmin, user, vetFilter]);
 
   return (
     <div className="space-y-6">
@@ -100,7 +124,9 @@ export default function ConsultationsList() {
       ) : (
         <div className="grid gap-3">
           {todaysAppointments.map((apt) => {
-            const borderColor = VET_COLORS[apt.vet_id] || "border-l-primary";
+            const colorIdx = vets.findIndex(v => v.id === apt.vet_id);
+            const colors = ["border-l-blue-500", "border-l-purple-500", "border-l-emerald-500", "border-l-amber-500"];
+            const borderColor = VET_COLORS[apt.vet_id] || colors[colorIdx % colors.length] || "border-l-primary";
             const isScheduled = apt.status === "scheduled";
             const isCompleted = apt.status === "completed";
 
@@ -125,9 +151,11 @@ export default function ConsultationsList() {
                         <span className="font-medium truncate">
                           {apt.pet?.name}
                         </span>
-                        <Badge variant="secondary" className="text-[10px] shrink-0">
-                          {apt.pet?.species} · {apt.pet?.breed}
-                        </Badge>
+                        {apt.pet?.species && (
+                          <Badge variant="secondary" className="text-[10px] shrink-0">
+                            {apt.pet.species}{apt.pet.breed ? ` · ${apt.pet.breed}` : ""}
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
@@ -140,10 +168,10 @@ export default function ConsultationsList() {
                             {apt.pet.owner.phone}
                           </a>
                         )}
-                        {isAdmin && (
+                        {isAdmin && apt.vet && (
                           <span className="flex items-center gap-1">
                             <Stethoscope className="h-3 w-3" />
-                            {apt.vet?.full_name}
+                            {apt.vet.full_name}
                           </span>
                         )}
                       </div>
@@ -155,10 +183,10 @@ export default function ConsultationsList() {
                     <StatusBadge status={apt.status} />
 
                     {isCompleted && (() => {
-                      const rec = mockMedicalRecords.find(
-                        (r) => r.appointment_id === apt.id && r.follow_up && r.follow_up.status !== "not_needed"
+                      const hasFollowUp = (medRecords || []).some(
+                        (r) => r.appointment_id === apt.id && r.notes?.includes("follow")
                       );
-                      return rec ? (
+                      return hasFollowUp ? (
                         <Badge variant="outline" className="text-[10px] border-primary/50 text-primary gap-1">
                           <CalendarPlus className="h-3 w-3" />
                           Follow-up
@@ -193,7 +221,7 @@ export default function ConsultationsList() {
         </div>
       )}
 
-      <WalkInModal open={showWalkIn} onOpenChange={setShowWalkIn} onCreated={() => setRefreshKey((k) => k + 1)} />
+      <WalkInModal open={showWalkIn} onOpenChange={setShowWalkIn} onCreated={() => refetchAppts()} />
     </div>
   );
 }

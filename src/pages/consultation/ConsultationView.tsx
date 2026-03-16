@@ -146,7 +146,7 @@ export default function ConsultationView() {
     return <div className="p-6">Appointment not found.</div>;
   }
   const overdueVaccinations = petVaccinations.filter(
-    (v) => parseISO(v.next_due_date) < new Date()
+    (v: any) => v.next_due_date && parseISO(v.next_due_date) < new Date()
   );
 
   const updateVitals = (key: string, value: string) => {

@@ -1,7 +1,8 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, differenceInYears, differenceInMonths } from "date-fns";
-import { mockAppointments, mockMedicalRecords, mockVaccinations, mockPets } from "@/lib/mock-data";
+import { getAppointment, getMedicalRecords, getVaccinations, createMedicalRecord, updateAppointment } from "@/lib/api-services";
 import type { MedicalRecord, Prescription } from "@/types/api";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageHeader } from "@/components/PageHeader";
@@ -119,15 +120,31 @@ export default function ConsultationView() {
 
   useUnsavedChanges(isDirty);
 
-  const appointment = mockAppointments.find((a) => a.id === appointmentId);
-  const pet = appointment?.pet || mockPets.find((p) => p.id === appointment?.pet_id);
+  const { data: appointment, isLoading: apptLoading } = useQuery({
+    queryKey: ["appointment", appointmentId],
+    queryFn: () => getAppointment(appointmentId!),
+    enabled: !!appointmentId,
+  });
+  const pet = appointment?.pet;
+  const petId = appointment?.pet_id;
+
+  const { data: petRecords = [] } = useQuery({
+    queryKey: ["medical-records", petId],
+    queryFn: () => getMedicalRecords({ pet_id: petId }),
+    enabled: !!petId,
+  });
+
+  const { data: petVaccinations = [] } = useQuery({
+    queryKey: ["vaccinations", petId],
+    queryFn: () => getVaccinations({ pet_id: petId }),
+    enabled: !!petId,
+  });
+
+  if (apptLoading) return <div className="p-6">Loading...</div>;
 
   if (!appointment || !pet) {
     return <div className="p-6">Appointment not found.</div>;
   }
-
-  const petRecords = mockMedicalRecords.filter((r) => r.pet_id === pet.id);
-  const petVaccinations = mockVaccinations.filter((v) => v.pet_id === pet.id);
   const overdueVaccinations = petVaccinations.filter(
     (v) => parseISO(v.next_due_date) < new Date()
   );
@@ -168,14 +185,46 @@ export default function ConsultationView() {
     toast({ title: `Copied ${lastRecord.prescriptions.length} prescription(s) from ${format(parseISO(lastRecord.visit_date), "MMM d, yyyy")}` });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    logAction({ actor_id: user?.id || "unknown", action_type: "save_consultation", entity_type: "appointment", entity_id: appointmentId || "" });
-    localStorage.removeItem(draftKey);
-    toast({ title: "Consultation saved", description: `${pet.name}'s record has been saved and appointment marked as completed.` });
-    setIsDirty(false);
-    setIsSaving(false);
-    setIsSaved(true);
+    try {
+      await createMedicalRecord({
+        pet_id: pet.id,
+        vet_id: user?.id || "",
+        appointment_id: appointmentId,
+        visit_date: new Date().toISOString().split("T")[0],
+        primary_diagnosis: soap.primary_diagnosis,
+        procedures_performed: soap.procedures_performed,
+        chief_complaint: soap.symptoms,
+        symptoms: soap.symptoms,
+        duration_onset: soap.duration_onset,
+        appetite_behavior: soap.appetite_behavior,
+        prior_treatments: soap.prior_treatments,
+        physical_exam_findings: soap.physical_exam_findings,
+        diagnostic_results: soap.diagnostic_results,
+        differential_diagnoses: soap.differential_diagnoses,
+        severity: soap.severity,
+        follow_up_instructions: soap.follow_up_instructions,
+        prescriptions,
+        follow_up: followUp.status !== "not_needed" ? followUp : undefined,
+        weight_kg: vitals.weight_kg ? parseFloat(vitals.weight_kg) : undefined,
+        temperature_f: vitals.temperature_f ? parseFloat(vitals.temperature_f) : undefined,
+        heart_rate_bpm: vitals.heart_rate_bpm ? parseFloat(vitals.heart_rate_bpm) : undefined,
+        respiratory_rate: vitals.respiratory_rate ? parseFloat(vitals.respiratory_rate) : undefined,
+        body_condition_score: vitals.body_condition_score ? parseFloat(vitals.body_condition_score) : undefined,
+      });
+      await updateAppointment(appointmentId!, { status: "completed" });
+      logAction({ actor_id: user?.id || "unknown", action_type: "save_consultation", entity_type: "appointment", entity_id: appointmentId || "" });
+      localStorage.removeItem(draftKey);
+      toast({ title: "Consultation saved", description: `${pet.name}'s record has been saved and appointment marked as completed.` });
+      setIsDirty(false);
+      setIsSaved(true);
+    } catch (err) {
+      console.warn("[ConsultationView] Failed to save consultation", err);
+      toast({ title: "Failed to save consultation", description: "Please try again.", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const shareViaWhatsApp = () => {

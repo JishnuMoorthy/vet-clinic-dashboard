@@ -21,8 +21,10 @@ import {
   setHours,
   setMinutes,
 } from "date-fns";
-import { mockAppointments, mockUsers, mockMedicalRecords } from "@/lib/mock-data";
+import { mockMedicalRecords } from "@/lib/mock-data";
 import { WalkInModal } from "@/components/WalkInModal";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getAppointments, getStaff, updateAppointment } from "@/lib/api-services";
 import type { Appointment } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -125,14 +127,26 @@ function handleDragEnd(e: DragEvent) {
 export default function AppointmentsCalendar() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-  const [appointments, setAppointments] = useState<Appointment[]>([...mockAppointments]);
   const [showList, setShowList] = useState(false);
   const [showWalkIn, setShowWalkIn] = useState(false);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const timeGridRef = useRef<HTMLDivElement>(null);
+
+  const { data: apptData } = useQuery({
+    queryKey: ["appointments"],
+    queryFn: () => getAppointments(),
+  });
+  const appointments = apptData?.data || [];
+
+  const { data: staffData } = useQuery({
+    queryKey: ["staff"],
+    queryFn: () => getStaff(),
+  });
+  const vets = (staffData?.data || []).filter((u) => u.role === "vet");
 
   useEffect(() => {
     if (timeGridRef.current && (viewMode === "week" || viewMode === "day")) {
@@ -143,17 +157,21 @@ export default function AppointmentsCalendar() {
   }, [viewMode]);
 
   const reschedule = useCallback(
-    (aptId: string, newDate: string, newTime: string) => {
-      setAppointments((prev) =>
-        prev.map((a) => (a.id === aptId ? { ...a, date: newDate, time: newTime } : a))
-      );
+    async (aptId: string, newDate: string, newTime: string) => {
       const apt = appointments.find((a) => a.id === aptId);
-      toast({
-        title: "Appointment rescheduled",
-        description: `${apt?.pet?.name || "Appointment"} moved to ${format(parseISO(newDate), "MMM d")} at ${newTime}`,
-      });
+      try {
+        await updateAppointment(aptId, { date: newDate, time: newTime });
+        queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        toast({
+          title: "Appointment rescheduled",
+          description: `${apt?.pet?.name || "Appointment"} moved to ${format(parseISO(newDate), "MMM d")} at ${newTime}`,
+        });
+      } catch (err) {
+        console.warn("[AppointmentsCalendar] Failed to reschedule appointment", err);
+        toast({ title: "Failed to reschedule appointment", variant: "destructive" });
+      }
     },
-    [appointments, toast]
+    [appointments, toast, queryClient]
   );
 
   const goToday = () => setCurrentDate(new Date());
@@ -181,8 +199,6 @@ export default function AppointmentsCalendar() {
 
   const getAptsForDay = (day: Date) =>
     appointments.filter((a) => isSameDay(parseISO(a.date), day));
-
-  const vets = mockUsers.filter((u) => u.role === "vet");
 
   return (
     <div className="flex h-[calc(100vh-7rem)] flex-col gap-0">
@@ -357,16 +373,16 @@ export default function AppointmentsCalendar() {
               apt={selectedAppointment}
               onClose={() => setSelectedAppointment(null)}
               onComplete={() => {
-                setAppointments((prev) =>
-                  prev.map((a) => (a.id === selectedAppointment.id ? { ...a, status: "completed" } : a))
-                );
+                updateAppointment(selectedAppointment.id, { status: "completed" })
+                  .then(() => queryClient.invalidateQueries({ queryKey: ["appointments"] }))
+                  .catch((err) => console.warn("[AppointmentsCalendar] Failed to complete appointment", err));
                 toast({ title: `${selectedAppointment.pet?.name} appointment completed` });
                 setSelectedAppointment(null);
               }}
               onCancel={() => {
-                setAppointments((prev) =>
-                  prev.map((a) => (a.id === selectedAppointment.id ? { ...a, status: "cancelled" } : a))
-                );
+                updateAppointment(selectedAppointment.id, { status: "cancelled" })
+                  .then(() => queryClient.invalidateQueries({ queryKey: ["appointments"] }))
+                  .catch((err) => console.warn("[AppointmentsCalendar] Failed to cancel appointment", err));
                 toast({ title: "Appointment cancelled" });
                 setSelectedAppointment(null);
               }}
@@ -374,7 +390,7 @@ export default function AppointmentsCalendar() {
           )}
         </DialogContent>
       </Dialog>
-      <WalkInModal open={showWalkIn} onOpenChange={setShowWalkIn} onCreated={() => setAppointments([...mockAppointments])} />
+      <WalkInModal open={showWalkIn} onOpenChange={setShowWalkIn} onCreated={() => queryClient.invalidateQueries({ queryKey: ["appointments"] })} />
     </div>
   );
 }

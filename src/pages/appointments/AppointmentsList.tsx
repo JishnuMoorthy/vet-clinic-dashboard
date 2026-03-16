@@ -49,9 +49,9 @@ export default function AppointmentsList() {
 
   const filtered = appointments.filter((a) => {
     const matchSearch =
-      a.pet?.name.toLowerCase().includes(search.toLowerCase()) ||
-      a.vet?.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      a.reason.toLowerCase().includes(search.toLowerCase());
+      a.pet?.name?.toLowerCase().includes(search.toLowerCase()) ||
+      a.vet?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+      a.reason?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || a.status === statusFilter;
     return matchSearch && matchStatus;
   });

@@ -8,6 +8,7 @@ import type {
   Invoice,
   User,
   UserRole,
+  MedicalRecord,
 } from "@/types/api";
 import { supabase, getClinicId } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
@@ -19,6 +20,8 @@ import {
   mockInventory,
   mockUsers,
   mockDashboardData,
+  mockMedicalRecords,
+  mockVaccinations,
 } from "@/lib/mock-data";
 
 // ─── Mappers ─────────────────────────────────────────────────────────────────
@@ -922,5 +925,131 @@ export async function deleteService(id: string): Promise<void> {
   } catch (err) {
     console.warn("[DeleteService] Supabase failed", err);
     throw err;
+  }
+}
+
+// ─── Medical Records ──────────────────────────────────────────────────────────
+
+export function mapMedicalRecord(r: any): MedicalRecord {
+  let notesObj: any = {};
+  if (r.notes && typeof r.notes === "string") {
+    try { notesObj = JSON.parse(r.notes); } catch (e) { console.warn("[mapMedicalRecord] Failed to parse notes JSON", e); }
+  } else if (r.notes && typeof r.notes === "object") {
+    notesObj = r.notes;
+  }
+  return {
+    id: r.id,
+    pet_id: r.pet_id,
+    vet_id: r.vet_id,
+    vet: r.users ? mapUser(r.users) : undefined,
+    appointment_id: r.appointment_id,
+    visit_date: r.record_date || r.visit_date || "",
+    chief_complaint: notesObj.chief_complaint || r.chief_complaint || r.diagnosis || "",
+    symptoms: notesObj.symptoms || r.symptoms || "",
+    duration_onset: notesObj.duration_onset || r.duration_onset || "",
+    appetite_behavior: notesObj.appetite_behavior || r.appetite_behavior || "",
+    prior_treatments: notesObj.prior_treatments || r.prior_treatments || "",
+    weight_kg: notesObj.vitals?.weight_kg ?? r.weight_kg,
+    temperature_f: notesObj.vitals?.temperature_f ?? r.temperature_f,
+    heart_rate_bpm: notesObj.vitals?.heart_rate_bpm ?? r.heart_rate_bpm,
+    respiratory_rate: notesObj.vitals?.respiratory_rate ?? r.respiratory_rate,
+    body_condition_score: notesObj.vitals?.body_condition_score ?? r.body_condition_score,
+    physical_exam_findings: notesObj.physical_exam_findings || r.physical_exam_findings || "",
+    diagnostic_results: notesObj.diagnostic_results || r.diagnostic_results || "",
+    primary_diagnosis: r.primary_diagnosis || notesObj.primary_diagnosis || r.diagnosis || "",
+    differential_diagnoses: notesObj.differential_diagnoses || r.differential_diagnoses || "",
+    severity: r.severity || notesObj.severity || "mild",
+    prescriptions: notesObj.prescriptions || r.prescriptions_json || r.prescriptions || [],
+    procedures_performed: notesObj.procedures_performed || r.procedures_performed || r.treatment || "",
+    follow_up_instructions: notesObj.follow_up_instructions || r.follow_up_instructions || "",
+    next_appointment_recommendation: notesObj.next_appointment_recommendation || r.next_appointment_recommendation || "",
+    follow_up: notesObj.follow_up || r.follow_up_json || r.follow_up,
+    created_at: r.created_at || "",
+    updated_at: r.updated_at || "",
+  };
+}
+
+export async function getMedicalRecords(params?: { pet_id?: string }): Promise<MedicalRecord[]> {
+  try {
+    const clinicId = getClinicId();
+    if (!clinicId) throw new Error("No clinic");
+    let query = supabase.from("medical_records")
+      .select("*, users!medical_records_vet_id_fkey(*)")
+      .eq("clinic_id", clinicId).eq("is_deleted", false);
+    if (params?.pet_id) query = query.eq("pet_id", params.pet_id);
+    query = query.order("record_date", { ascending: false });
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).map(mapMedicalRecord);
+  } catch (err) {
+    console.warn("[MedicalRecords] Supabase failed, using mock data", err);
+    return params?.pet_id
+      ? mockMedicalRecords.filter((r) => r.pet_id === params.pet_id)
+      : [...mockMedicalRecords];
+  }
+}
+
+export async function createMedicalRecord(data: any): Promise<any> {
+  try {
+    const clinicId = getClinicId();
+    if (!clinicId) throw new Error("No clinic");
+    const { data: row, error } = await supabase.from("medical_records").insert({
+      clinic_id: clinicId,
+      pet_id: data.pet_id || "",
+      vet_id: data.vet_id || "",
+      appointment_id: data.appointment_id || null,
+      record_date: data.visit_date || new Date().toISOString().split("T")[0],
+      diagnosis: data.primary_diagnosis || "",
+      treatment: data.procedures_performed || "",
+      notes: JSON.stringify({
+        chief_complaint: data.chief_complaint,
+        symptoms: data.symptoms,
+        duration_onset: data.duration_onset,
+        appetite_behavior: data.appetite_behavior,
+        prior_treatments: data.prior_treatments,
+        physical_exam_findings: data.physical_exam_findings,
+        diagnostic_results: data.diagnostic_results,
+        differential_diagnoses: data.differential_diagnoses,
+        severity: data.severity,
+        prescriptions: data.prescriptions,
+        follow_up_instructions: data.follow_up_instructions,
+        next_appointment_recommendation: data.next_appointment_recommendation,
+        follow_up: data.follow_up,
+        vitals: {
+          weight_kg: data.weight_kg,
+          temperature_f: data.temperature_f,
+          heart_rate_bpm: data.heart_rate_bpm,
+          respiratory_rate: data.respiratory_rate,
+          body_condition_score: data.body_condition_score,
+        },
+      }),
+    }).select().single();
+    if (error) throw error;
+    return row;
+  } catch (err) {
+    console.warn("[CreateMedicalRecord] Supabase failed", err);
+    throw err;
+  }
+}
+
+// ─── Vaccinations ─────────────────────────────────────────────────────────────
+
+export async function getVaccinations(params?: { pet_id?: string }) {
+  try {
+    const clinicId = getClinicId();
+    if (!clinicId) throw new Error("No clinic");
+    let query = supabase.from("vaccinations")
+      .select("*, users!vaccinations_administered_by_id_fkey(*)")
+      .eq("clinic_id", clinicId).eq("is_deleted", false);
+    if (params?.pet_id) query = query.eq("pet_id", params.pet_id);
+    query = query.order("date_administered", { ascending: false });
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.warn("[Vaccinations] Supabase failed, using mock data", err);
+    return params?.pet_id
+      ? mockVaccinations.filter((v) => v.pet_id === params.pet_id)
+      : [...mockVaccinations];
   }
 }

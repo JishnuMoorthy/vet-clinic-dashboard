@@ -146,7 +146,7 @@ export default function ConsultationView() {
     return <div className="p-6">Appointment not found.</div>;
   }
   const overdueVaccinations = petVaccinations.filter(
-    (v) => parseISO(v.next_due_date) < new Date()
+    (v: any) => v.next_due_date && parseISO(v.next_due_date) < new Date()
   );
 
   const updateVitals = (key: string, value: string) => {
@@ -278,7 +278,7 @@ export default function ConsultationView() {
           <AlertTriangle className="mt-0.5 h-4 w-4 text-destructive shrink-0" />
           <div>
             <span className="font-medium text-destructive">Overdue Vaccinations: </span>
-            {overdueVaccinations.map((v) => v.vaccine_name).join(", ")}
+            {overdueVaccinations.map((v: any) => v.vaccine_name).join(", ")}
           </div>
         </div>
       )}

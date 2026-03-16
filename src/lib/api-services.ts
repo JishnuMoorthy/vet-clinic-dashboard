@@ -31,6 +31,7 @@ export function mapUser(u: any): User {
     ...u,
     full_name: u.name || u.full_name || "",
     role: (u.role || "staff") as UserRole,
+    specialties: u.specialties || [],
   };
 }
 
@@ -818,6 +819,7 @@ export async function createStaff(data: Partial<User>): Promise<User> {
       phone: data.phone || null,
       password_hash: passwordHash,
       is_active: true,
+      specialties: data.specialties || [],
     }).select().single();
     if (error) throw error;
     return mapUser(row);
@@ -839,6 +841,7 @@ export async function updateStaff(id: string, data: Partial<User>): Promise<User
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.role !== undefined) updateData.role = data.role;
     if (data.is_active !== undefined) updateData.is_active = data.is_active;
+    if (data.specialties !== undefined) updateData.specialties = data.specialties;
 
     const { data: row, error } = await supabase.from("users")
       .update(updateData).eq("id", id).select().single();
@@ -1034,12 +1037,12 @@ export async function createMedicalRecord(data: any): Promise<any> {
 
 // ─── Vaccinations ─────────────────────────────────────────────────────────────
 
-export async function getVaccinations(params?: { pet_id?: string }) {
+export async function getVaccinations(params?: { pet_id?: string }): Promise<any[]> {
   try {
     const clinicId = getClinicId();
     if (!clinicId) throw new Error("No clinic");
     let query = supabase.from("vaccinations")
-      .select("*, users!vaccinations_administered_by_id_fkey(*)")
+      .select("*")
       .eq("clinic_id", clinicId).eq("is_deleted", false);
     if (params?.pet_id) query = query.eq("pet_id", params.pet_id);
     query = query.order("date_administered", { ascending: false });

@@ -286,49 +286,109 @@ export type Database = {
       }
       medical_records: {
         Row: {
+          appetite_behavior: string | null
           appointment_id: string | null
+          body_condition_score: number | null
+          chief_complaint: string | null
           clinic_id: string
           created_at: string | null
           deleted_at: string | null
           diagnosis: string | null
+          diagnostic_results: string | null
+          differential_diagnoses: string | null
+          duration_onset: string | null
+          follow_up_instructions: string | null
+          follow_up_json: Json | null
+          heart_rate_bpm: number | null
           id: string
           is_deleted: boolean | null
+          next_appointment_recommendation: string | null
           notes: string | null
           pet_id: string
+          physical_exam_findings: string | null
+          prescriptions_json: Json | null
+          primary_diagnosis: string | null
+          prior_treatments: string | null
+          procedures_performed: string | null
           record_date: string
+          respiratory_rate: number | null
+          severity: string | null
+          symptoms: string | null
+          temperature_f: number | null
           treatment: string | null
           updated_at: string | null
           vet_id: string
+          weight_kg: number | null
         }
         Insert: {
+          appetite_behavior?: string | null
           appointment_id?: string | null
+          body_condition_score?: number | null
+          chief_complaint?: string | null
           clinic_id: string
           created_at?: string | null
           deleted_at?: string | null
           diagnosis?: string | null
+          diagnostic_results?: string | null
+          differential_diagnoses?: string | null
+          duration_onset?: string | null
+          follow_up_instructions?: string | null
+          follow_up_json?: Json | null
+          heart_rate_bpm?: number | null
           id?: string
           is_deleted?: boolean | null
+          next_appointment_recommendation?: string | null
           notes?: string | null
           pet_id: string
+          physical_exam_findings?: string | null
+          prescriptions_json?: Json | null
+          primary_diagnosis?: string | null
+          prior_treatments?: string | null
+          procedures_performed?: string | null
           record_date: string
+          respiratory_rate?: number | null
+          severity?: string | null
+          symptoms?: string | null
+          temperature_f?: number | null
           treatment?: string | null
           updated_at?: string | null
           vet_id: string
+          weight_kg?: number | null
         }
         Update: {
+          appetite_behavior?: string | null
           appointment_id?: string | null
+          body_condition_score?: number | null
+          chief_complaint?: string | null
           clinic_id?: string
           created_at?: string | null
           deleted_at?: string | null
           diagnosis?: string | null
+          diagnostic_results?: string | null
+          differential_diagnoses?: string | null
+          duration_onset?: string | null
+          follow_up_instructions?: string | null
+          follow_up_json?: Json | null
+          heart_rate_bpm?: number | null
           id?: string
           is_deleted?: boolean | null
+          next_appointment_recommendation?: string | null
           notes?: string | null
           pet_id?: string
+          physical_exam_findings?: string | null
+          prescriptions_json?: Json | null
+          primary_diagnosis?: string | null
+          prior_treatments?: string | null
+          procedures_performed?: string | null
           record_date?: string
+          respiratory_rate?: number | null
+          severity?: string | null
+          symptoms?: string | null
+          temperature_f?: number | null
           treatment?: string | null
           updated_at?: string | null
           vet_id?: string
+          weight_kg?: number | null
         }
         Relationships: [
           {
@@ -881,6 +941,7 @@ export type Database = {
           password_hash: string
           phone: string | null
           role: string
+          specialties: string[] | null
           updated_at: string | null
         }
         Insert: {
@@ -895,6 +956,7 @@ export type Database = {
           password_hash: string
           phone?: string | null
           role: string
+          specialties?: string[] | null
           updated_at?: string | null
         }
         Update: {
@@ -909,6 +971,7 @@ export type Database = {
           password_hash?: string
           phone?: string | null
           role?: string
+          specialties?: string[] | null
           updated_at?: string | null
         }
         Relationships: [
@@ -917,6 +980,76 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vaccinations: {
+        Row: {
+          administered_by_id: string | null
+          batch_number: string | null
+          clinic_id: string
+          created_at: string | null
+          date_administered: string
+          deleted_at: string | null
+          id: string
+          is_deleted: boolean | null
+          next_due_date: string | null
+          notes: string | null
+          pet_id: string
+          updated_at: string | null
+          vaccine_name: string
+        }
+        Insert: {
+          administered_by_id?: string | null
+          batch_number?: string | null
+          clinic_id: string
+          created_at?: string | null
+          date_administered: string
+          deleted_at?: string | null
+          id?: string
+          is_deleted?: boolean | null
+          next_due_date?: string | null
+          notes?: string | null
+          pet_id: string
+          updated_at?: string | null
+          vaccine_name: string
+        }
+        Update: {
+          administered_by_id?: string | null
+          batch_number?: string | null
+          clinic_id?: string
+          created_at?: string | null
+          date_administered?: string
+          deleted_at?: string | null
+          id?: string
+          is_deleted?: boolean | null
+          next_due_date?: string | null
+          notes?: string | null
+          pet_id?: string
+          updated_at?: string | null
+          vaccine_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vaccinations_administered_by_id_fkey"
+            columns: ["administered_by_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vaccinations_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vaccinations_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
             referencedColumns: ["id"]
           },
         ]

@@ -50,8 +50,12 @@ export function mapPet(p: any): Pet {
 }
 
 export function mapAppointment(a: any): Appointment {
+  // DB uses "no_show" but frontend uses "no-show"
+  let status = a.status || "scheduled";
+  if (status === "no_show") status = "no-show";
   return {
     ...a,
+    status,
     date: a.appointment_date || a.date || "",
     time: a.appointment_time || a.time || "",
     pet: a.pets ? mapPet(a.pets) : a.pet ? mapPet(a.pet) : undefined,

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { addOwner } from "@/lib/mock-data";
+import { createOwner } from "@/lib/api-services";
 import { logAction } from "@/lib/audit-log";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -22,29 +22,29 @@ export function InlineOwnerModal({ open, onOpenChange, onCreated }: Props) {
 
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.full_name || !form.phone) {
       toast({ title: "Name and phone are required", variant: "destructive" });
       return;
     }
     setIsSaving(true);
-    const newId = `owner-${Date.now()}`;
-    addOwner({
-      id: newId,
-      full_name: form.full_name,
-      phone: form.phone,
-      email: form.email || undefined,
-      address: form.address || undefined,
-      pets_count: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-    logAction({ actor_id: user?.id || "unknown", action_type: "create", entity_type: "owner", entity_id: newId });
-    toast({ title: `${form.full_name} added!` });
-    onCreated(newId);
-    setForm({ full_name: "", phone: "", email: "", address: "" });
-    setIsSaving(false);
-    onOpenChange(false);
+    try {
+      const newOwner = await createOwner({
+        full_name: form.full_name,
+        phone: form.phone,
+        email: form.email || undefined,
+        address: form.address || undefined,
+      });
+      logAction({ actor_id: user?.id || "unknown", action_type: "create", entity_type: "owner", entity_id: newOwner.id });
+      toast({ title: `${form.full_name} added!` });
+      onCreated(newOwner.id);
+      setForm({ full_name: "", phone: "", email: "", address: "" });
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: "Failed to add owner", description: err?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

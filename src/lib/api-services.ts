@@ -40,8 +40,11 @@ export function mapOwner(o: any): PetOwner {
 }
 
 export function mapPet(p: any): Pet {
+  // DB stores gender as lowercase; frontend expects capitalized
+  const gender = p.gender ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1) : p.gender;
   return {
     ...p,
+    gender,
     status: p.health_status || p.status || "active",
     weight: p.weight_kg ?? p.weight,
     owner: p.pet_owners ? mapOwner(p.pet_owners) : p.owner ? mapOwner(p.owner) : undefined,
@@ -50,8 +53,12 @@ export function mapPet(p: any): Pet {
 }
 
 export function mapAppointment(a: any): Appointment {
+  // DB uses "no_show" but frontend uses "no-show"
+  let status = a.status || "scheduled";
+  if (status === "no_show") status = "no-show";
   return {
     ...a,
+    status,
     date: a.appointment_date || a.date || "",
     time: a.appointment_time || a.time || "",
     pet: a.pets ? mapPet(a.pets) : a.pet ? mapPet(a.pet) : undefined,
@@ -118,9 +125,13 @@ export async function getDashboardStats(): Promise<DashboardData> {
         .order("created_at", { ascending: false }).limit(5),
       supabase.from("inventory").select("*")
         .eq("clinic_id", clinicId).eq("is_deleted", false)
-        .or("quantity.eq.0,quantity.lte.low_stock_threshold")
-        .limit(10),
+        .order("quantity", { ascending: true })
+        .limit(20),
     ]);
+
+    // Filter low stock items client-side since PostgREST can't compare column-to-column
+    const allInventory = (lowStockItems || []).map(mapInventoryItem);
+    const lowStock = allInventory.filter((i) => i.status === "low" || i.status === "out").slice(0, 10);
 
     return {
       todays_appointments: todayAppts ?? 0,
@@ -129,7 +140,7 @@ export async function getDashboardStats(): Promise<DashboardData> {
       total_owners: totalOwners ?? 0,
       upcoming_appointments: (recentAppts || []).map(mapAppointment),
       recent_invoices: (recentInvoices || []).map(mapInvoice),
-      low_stock_items: (lowStockItems || []).map(mapInventoryItem),
+      low_stock_items: lowStock,
     };
   } catch (err) {
     console.warn("[Dashboard] Supabase failed, using mock data", err);
@@ -350,7 +361,7 @@ export async function createPet(data: Partial<Pet>): Promise<Pet> {
       name: data.name || "",
       species: data.species || "Dog",
       breed: data.breed || null,
-      gender: data.gender || null,
+      gender: data.gender ? data.gender.toLowerCase() : null,
       date_of_birth: data.date_of_birth || null,
       weight_kg: data.weight ?? null,
       microchip_id: data.microchip_id || null,
@@ -377,7 +388,7 @@ export async function updatePet(id: string, data: Partial<Pet>): Promise<Pet> {
     if (data.name !== undefined) updateData.name = data.name;
     if (data.species !== undefined) updateData.species = data.species;
     if (data.breed !== undefined) updateData.breed = data.breed;
-    if (data.gender !== undefined) updateData.gender = data.gender;
+    if (data.gender !== undefined) updateData.gender = data.gender ? data.gender.toLowerCase() : null;
     if (data.date_of_birth !== undefined) updateData.date_of_birth = data.date_of_birth;
     if (data.weight !== undefined) updateData.weight_kg = data.weight;
     if (data.microchip_id !== undefined) updateData.microchip_id = data.microchip_id;
@@ -475,7 +486,7 @@ export async function createAppointment(data: Partial<Appointment>): Promise<App
       appointment_time: data.time || "",
       reason: data.reason || "",
       notes: data.notes || null,
-      status: data.status || "scheduled",
+      status: (data.status === "no-show" ? "no_show" : data.status) || "scheduled",
     }).select().single();
     if (error) throw error;
     return mapAppointment(row);
@@ -499,7 +510,7 @@ export async function updateAppointment(id: string, data: Partial<Appointment>):
     if (data.vet_id !== undefined) updateData.vet_id = data.vet_id;
     if (data.reason !== undefined) updateData.reason = data.reason;
     if (data.notes !== undefined) updateData.notes = data.notes;
-    if (data.status !== undefined) updateData.status = data.status;
+    if (data.status !== undefined) updateData.status = data.status === "no-show" ? "no_show" : data.status;
     if ((data as any).owner_id !== undefined) updateData.owner_id = (data as any).owner_id;
 
     const { data: row, error } = await supabase.from("appointments")

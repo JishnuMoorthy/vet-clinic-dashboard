@@ -161,37 +161,46 @@ export default function AppointmentsCalendar() {
   }
 
   // Unique pets and owners from appointments for filter dropdowns
-  const uniquePets = useMemo(() => {
+  const petOptions = useMemo(() => {
     const map = new Map<string, string>();
     allAppointments.forEach((a) => { if (a.pet?.name) map.set(a.pet_id, a.pet.name); });
-    return Array.from(map, ([id, name]) => ({ id, name }));
+    return Array.from(map, ([id, label]) => ({ id, label }));
   }, [allAppointments]);
 
-  const uniqueOwners = useMemo(() => {
+  const ownerOptions = useMemo(() => {
     const map = new Map<string, string>();
     allAppointments.forEach((a) => {
       const owner = (a as any).pet_owners || a.pet?.owner;
       if (owner) map.set(owner.id || a.pet?.owner_id, owner.full_name || owner.name);
     });
-    return Array.from(map, ([id, name]) => ({ id, name }));
+    return Array.from(map, ([id, label]) => ({ id, label }));
   }, [allAppointments]);
 
-  // Apply filters
+  const vetOptions = useMemo(() => vets.map((v) => ({ id: v.id, label: v.full_name })), [vets]);
+
+  const statusOptions = [
+    { id: "scheduled", label: "Scheduled" },
+    { id: "completed", label: "Completed" },
+    { id: "cancelled", label: "Cancelled" },
+    { id: "no-show", label: "No Show" },
+  ];
+
+  // Apply filters (empty array = show all)
   const appointments = useMemo(() => {
     return allAppointments.filter((a) => {
-      if (filterVet !== "all" && a.vet_id !== filterVet) return false;
-      if (filterStatus !== "all" && a.status !== filterStatus) return false;
-      if (filterPet !== "all" && a.pet_id !== filterPet) return false;
-      if (filterOwner !== "all") {
+      if (filterVets.length > 0 && !filterVets.includes(a.vet_id)) return false;
+      if (filterStatuses.length > 0 && !filterStatuses.includes(a.status)) return false;
+      if (filterPets.length > 0 && !filterPets.includes(a.pet_id)) return false;
+      if (filterOwners.length > 0) {
         const owner = (a as any).pet_owners || a.pet?.owner;
         const ownerId = owner?.id || a.pet?.owner_id;
-        if (ownerId !== filterOwner) return false;
+        if (!filterOwners.includes(ownerId)) return false;
       }
       return true;
     });
-  }, [allAppointments, filterVet, filterStatus, filterPet, filterOwner]);
+  }, [allAppointments, filterVets, filterStatuses, filterPets, filterOwners]);
 
-  const hasFilters = filterVet !== "all" || filterStatus !== "all" || filterPet !== "all" || filterOwner !== "all";
+  const hasFilters = filterVets.length > 0 || filterStatuses.length > 0 || filterPets.length > 0 || filterOwners.length > 0;
 
   useEffect(() => {
     if (timeGridRef.current && (viewMode === "week" || viewMode === "day")) {

@@ -29,10 +29,7 @@ import type { Appointment } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -131,11 +128,11 @@ export default function AppointmentsCalendar() {
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const timeGridRef = useRef<HTMLDivElement>(null);
 
-  // Filters
-  const [filterVet, setFilterVet] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterPet, setFilterPet] = useState("all");
-  const [filterOwner, setFilterOwner] = useState("all");
+  // Filters (empty array = all selected)
+  const [filterVets, setFilterVets] = useState<string[]>([]);
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
+  const [filterPets, setFilterPets] = useState<string[]>([]);
+  const [filterOwners, setFilterOwners] = useState<string[]>([]);
 
   const { data: apptData } = useQuery({
     queryKey: ["appointments"],
@@ -163,37 +160,46 @@ export default function AppointmentsCalendar() {
   }
 
   // Unique pets and owners from appointments for filter dropdowns
-  const uniquePets = useMemo(() => {
+  const petOptions = useMemo(() => {
     const map = new Map<string, string>();
     allAppointments.forEach((a) => { if (a.pet?.name) map.set(a.pet_id, a.pet.name); });
-    return Array.from(map, ([id, name]) => ({ id, name }));
+    return Array.from(map, ([id, label]) => ({ id, label }));
   }, [allAppointments]);
 
-  const uniqueOwners = useMemo(() => {
+  const ownerOptions = useMemo(() => {
     const map = new Map<string, string>();
     allAppointments.forEach((a) => {
       const owner = (a as any).pet_owners || a.pet?.owner;
       if (owner) map.set(owner.id || a.pet?.owner_id, owner.full_name || owner.name);
     });
-    return Array.from(map, ([id, name]) => ({ id, name }));
+    return Array.from(map, ([id, label]) => ({ id, label }));
   }, [allAppointments]);
 
-  // Apply filters
+  const vetOptions = useMemo(() => vets.map((v) => ({ id: v.id, label: v.full_name })), [vets]);
+
+  const statusOptions = [
+    { id: "scheduled", label: "Scheduled" },
+    { id: "completed", label: "Completed" },
+    { id: "cancelled", label: "Cancelled" },
+    { id: "no-show", label: "No Show" },
+  ];
+
+  // Apply filters (empty array = show all)
   const appointments = useMemo(() => {
     return allAppointments.filter((a) => {
-      if (filterVet !== "all" && a.vet_id !== filterVet) return false;
-      if (filterStatus !== "all" && a.status !== filterStatus) return false;
-      if (filterPet !== "all" && a.pet_id !== filterPet) return false;
-      if (filterOwner !== "all") {
+      if (filterVets.length > 0 && !filterVets.includes(a.vet_id)) return false;
+      if (filterStatuses.length > 0 && !filterStatuses.includes(a.status)) return false;
+      if (filterPets.length > 0 && !filterPets.includes(a.pet_id)) return false;
+      if (filterOwners.length > 0) {
         const owner = (a as any).pet_owners || a.pet?.owner;
         const ownerId = owner?.id || a.pet?.owner_id;
-        if (ownerId !== filterOwner) return false;
+        if (!filterOwners.includes(ownerId)) return false;
       }
       return true;
     });
-  }, [allAppointments, filterVet, filterStatus, filterPet, filterOwner]);
+  }, [allAppointments, filterVets, filterStatuses, filterPets, filterOwners]);
 
-  const hasFilters = filterVet !== "all" || filterStatus !== "all" || filterPet !== "all" || filterOwner !== "all";
+  const hasFilters = filterVets.length > 0 || filterStatuses.length > 0 || filterPets.length > 0 || filterOwners.length > 0;
 
   useEffect(() => {
     if (timeGridRef.current && (viewMode === "week" || viewMode === "day")) {
@@ -248,10 +254,10 @@ export default function AppointmentsCalendar() {
     appointments.filter((a) => isSameDay(parseISO(a.date), day));
 
   const clearFilters = () => {
-    setFilterVet("all");
-    setFilterStatus("all");
-    setFilterPet("all");
-    setFilterOwner("all");
+    setFilterVets([]);
+    setFilterStatuses([]);
+    setFilterPets([]);
+    setFilterOwners([]);
   };
 
   return (
@@ -319,111 +325,10 @@ export default function AppointmentsCalendar() {
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-2 py-1.5">
         <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-
-        {/* Vet filter - searchable */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 w-[160px] justify-between text-xs font-normal">
-              {filterVet === "all" ? "All Vets" : vets.find((v) => v.id === filterVet)?.full_name || "All Vets"}
-              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[200px] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search vets..." className="h-8 text-xs" />
-              <CommandList>
-                <CommandEmpty className="py-2 text-xs">No vet found.</CommandEmpty>
-                <CommandGroup>
-                  <CommandItem value="all-vets" onSelect={() => setFilterVet("all")} className="text-xs">
-                    <Check className={cn("mr-2 h-3 w-3", filterVet === "all" ? "opacity-100" : "opacity-0")} />
-                    All Vets
-                  </CommandItem>
-                  {vets.map((v) => (
-                    <CommandItem key={v.id} value={v.full_name} onSelect={() => setFilterVet(v.id)} className="text-xs">
-                      <Check className={cn("mr-2 h-3 w-3", filterVet === v.id ? "opacity-100" : "opacity-0")} />
-                      {v.full_name}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-
-        {/* Status filter - simple select (few items, no search needed) */}
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="h-7 w-[130px] text-xs">
-            <SelectValue placeholder="All Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="scheduled">Scheduled</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-            <SelectItem value="no-show">No Show</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Pet filter - searchable */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 w-[160px] justify-between text-xs font-normal">
-              {filterPet === "all" ? "All Pets" : uniquePets.find((p) => p.id === filterPet)?.name || "All Pets"}
-              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[200px] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search pets..." className="h-8 text-xs" />
-              <CommandList>
-                <CommandEmpty className="py-2 text-xs">No pet found.</CommandEmpty>
-                <CommandGroup>
-                  <CommandItem value="all-pets" onSelect={() => setFilterPet("all")} className="text-xs">
-                    <Check className={cn("mr-2 h-3 w-3", filterPet === "all" ? "opacity-100" : "opacity-0")} />
-                    All Pets
-                  </CommandItem>
-                  {uniquePets.map((p) => (
-                    <CommandItem key={p.id} value={p.name} onSelect={() => setFilterPet(p.id)} className="text-xs">
-                      <Check className={cn("mr-2 h-3 w-3", filterPet === p.id ? "opacity-100" : "opacity-0")} />
-                      {p.name}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-
-        {/* Owner filter - searchable */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 w-[160px] justify-between text-xs font-normal">
-              {filterOwner === "all" ? "All Owners" : uniqueOwners.find((o) => o.id === filterOwner)?.name || "All Owners"}
-              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[200px] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search owners..." className="h-8 text-xs" />
-              <CommandList>
-                <CommandEmpty className="py-2 text-xs">No owner found.</CommandEmpty>
-                <CommandGroup>
-                  <CommandItem value="all-owners" onSelect={() => setFilterOwner("all")} className="text-xs">
-                    <Check className={cn("mr-2 h-3 w-3", filterOwner === "all" ? "opacity-100" : "opacity-0")} />
-                    All Owners
-                  </CommandItem>
-                  {uniqueOwners.map((o) => (
-                    <CommandItem key={o.id} value={o.name} onSelect={() => setFilterOwner(o.id)} className="text-xs">
-                      <Check className={cn("mr-2 h-3 w-3", filterOwner === o.id ? "opacity-100" : "opacity-0")} />
-                      {o.name}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-
+        <MultiSelectFilter label="Vets" options={vetOptions} selected={filterVets} onSelectionChange={setFilterVets} />
+        <MultiSelectFilter label="Status" options={statusOptions} selected={filterStatuses} onSelectionChange={setFilterStatuses} />
+        <MultiSelectFilter label="Pets" options={petOptions} selected={filterPets} onSelectionChange={setFilterPets} />
+        <MultiSelectFilter label="Owners" options={ownerOptions} selected={filterOwners} onSelectionChange={setFilterOwners} />
         {hasFilters && (
           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={clearFilters}>
             Clear filters

@@ -483,7 +483,7 @@ export async function createAppointment(data: Partial<Appointment>): Promise<App
       appointment_time: data.time || "",
       reason: data.reason || "",
       notes: data.notes || null,
-      status: data.status || "scheduled",
+      status: (data.status === "no-show" ? "no_show" : data.status) || "scheduled",
     }).select().single();
     if (error) throw error;
     return mapAppointment(row);

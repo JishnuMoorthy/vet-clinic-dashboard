@@ -319,17 +319,38 @@ export default function AppointmentsCalendar() {
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-2 py-1.5">
         <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-        <Select value={filterVet} onValueChange={setFilterVet}>
-          <SelectTrigger className="h-7 w-[140px] text-xs">
-            <SelectValue placeholder="All Vets" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Vets</SelectItem>
-            {vets.map((v) => (
-              <SelectItem key={v.id} value={v.id}>{v.full_name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+        {/* Vet filter - searchable */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-7 w-[160px] justify-between text-xs font-normal">
+              {filterVet === "all" ? "All Vets" : vets.find((v) => v.id === filterVet)?.full_name || "All Vets"}
+              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search vets..." className="h-8 text-xs" />
+              <CommandList>
+                <CommandEmpty className="py-2 text-xs">No vet found.</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem value="all-vets" onSelect={() => setFilterVet("all")} className="text-xs">
+                    <Check className={cn("mr-2 h-3 w-3", filterVet === "all" ? "opacity-100" : "opacity-0")} />
+                    All Vets
+                  </CommandItem>
+                  {vets.map((v) => (
+                    <CommandItem key={v.id} value={v.full_name} onSelect={() => setFilterVet(v.id)} className="text-xs">
+                      <Check className={cn("mr-2 h-3 w-3", filterVet === v.id ? "opacity-100" : "opacity-0")} />
+                      {v.full_name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
+        {/* Status filter - simple select (few items, no search needed) */}
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="h-7 w-[130px] text-xs">
             <SelectValue placeholder="All Status" />
@@ -342,28 +363,67 @@ export default function AppointmentsCalendar() {
             <SelectItem value="no-show">No Show</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={filterPet} onValueChange={setFilterPet}>
-          <SelectTrigger className="h-7 w-[140px] text-xs">
-            <SelectValue placeholder="All Pets" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Pets</SelectItem>
-            {uniquePets.map((p) => (
-              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={filterOwner} onValueChange={setFilterOwner}>
-          <SelectTrigger className="h-7 w-[140px] text-xs">
-            <SelectValue placeholder="All Owners" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Owners</SelectItem>
-            {uniqueOwners.map((o) => (
-              <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+        {/* Pet filter - searchable */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-7 w-[160px] justify-between text-xs font-normal">
+              {filterPet === "all" ? "All Pets" : uniquePets.find((p) => p.id === filterPet)?.name || "All Pets"}
+              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search pets..." className="h-8 text-xs" />
+              <CommandList>
+                <CommandEmpty className="py-2 text-xs">No pet found.</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem value="all-pets" onSelect={() => setFilterPet("all")} className="text-xs">
+                    <Check className={cn("mr-2 h-3 w-3", filterPet === "all" ? "opacity-100" : "opacity-0")} />
+                    All Pets
+                  </CommandItem>
+                  {uniquePets.map((p) => (
+                    <CommandItem key={p.id} value={p.name} onSelect={() => setFilterPet(p.id)} className="text-xs">
+                      <Check className={cn("mr-2 h-3 w-3", filterPet === p.id ? "opacity-100" : "opacity-0")} />
+                      {p.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
+        {/* Owner filter - searchable */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-7 w-[160px] justify-between text-xs font-normal">
+              {filterOwner === "all" ? "All Owners" : uniqueOwners.find((o) => o.id === filterOwner)?.name || "All Owners"}
+              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search owners..." className="h-8 text-xs" />
+              <CommandList>
+                <CommandEmpty className="py-2 text-xs">No owner found.</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem value="all-owners" onSelect={() => setFilterOwner("all")} className="text-xs">
+                    <Check className={cn("mr-2 h-3 w-3", filterOwner === "all" ? "opacity-100" : "opacity-0")} />
+                    All Owners
+                  </CommandItem>
+                  {uniqueOwners.map((o) => (
+                    <CommandItem key={o.id} value={o.name} onSelect={() => setFilterOwner(o.id)} className="text-xs">
+                      <Check className={cn("mr-2 h-3 w-3", filterOwner === o.id ? "opacity-100" : "opacity-0")} />
+                      {o.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
         {hasFilters && (
           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={clearFilters}>
             Clear filters

@@ -841,6 +841,7 @@ export async function updateStaff(id: string, data: Partial<User>): Promise<User
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.role !== undefined) updateData.role = data.role;
     if (data.is_active !== undefined) updateData.is_active = data.is_active;
+    if (data.specialties !== undefined) updateData.specialties = data.specialties;
 
     const { data: row, error } = await supabase.from("users")
       .update(updateData).eq("id", id).select().single();

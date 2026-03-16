@@ -1037,12 +1037,12 @@ export async function createMedicalRecord(data: any): Promise<any> {
 
 // ─── Vaccinations ─────────────────────────────────────────────────────────────
 
-export async function getVaccinations(params?: { pet_id?: string }) {
+export async function getVaccinations(params?: { pet_id?: string }): Promise<any[]> {
   try {
     const clinicId = getClinicId();
     if (!clinicId) throw new Error("No clinic");
     let query = supabase.from("vaccinations")
-      .select("*, users!vaccinations_administered_by_id_fkey(*)")
+      .select("*")
       .eq("clinic_id", clinicId).eq("is_deleted", false);
     if (params?.pet_id) query = query.eq("pet_id", params.pet_id);
     query = query.order("date_administered", { ascending: false });

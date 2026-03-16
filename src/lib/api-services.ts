@@ -507,7 +507,7 @@ export async function updateAppointment(id: string, data: Partial<Appointment>):
     if (data.vet_id !== undefined) updateData.vet_id = data.vet_id;
     if (data.reason !== undefined) updateData.reason = data.reason;
     if (data.notes !== undefined) updateData.notes = data.notes;
-    if (data.status !== undefined) updateData.status = data.status;
+    if (data.status !== undefined) updateData.status = data.status === "no-show" ? "no_show" : data.status;
     if ((data as any).owner_id !== undefined) updateData.owner_id = (data as any).owner_id;
 
     const { data: row, error } = await supabase.from("appointments")

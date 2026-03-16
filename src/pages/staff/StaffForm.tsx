@@ -78,8 +78,8 @@ export default function StaffForm() {
   const mutation = useMutation({
     mutationFn: (data: typeof form) =>
       isEdit
-        ? updateStaff(id!, { ...data, specialties })
-        : createStaff({ ...data, specialties }),
+        ? updateStaff(id!, { ...data, role: data.role as import("@/types/api").UserRole, specialties })
+        : createStaff({ ...data, role: data.role as import("@/types/api").UserRole, specialties }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       if (isEdit) queryClient.invalidateQueries({ queryKey: ["staff-member", id] });

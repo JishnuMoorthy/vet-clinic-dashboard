@@ -377,7 +377,7 @@ export async function updatePet(id: string, data: Partial<Pet>): Promise<Pet> {
     if (data.name !== undefined) updateData.name = data.name;
     if (data.species !== undefined) updateData.species = data.species;
     if (data.breed !== undefined) updateData.breed = data.breed;
-    if (data.gender !== undefined) updateData.gender = data.gender;
+    if (data.gender !== undefined) updateData.gender = data.gender ? data.gender.toLowerCase() : null;
     if (data.date_of_birth !== undefined) updateData.date_of_birth = data.date_of_birth;
     if (data.weight !== undefined) updateData.weight_kg = data.weight;
     if (data.microchip_id !== undefined) updateData.microchip_id = data.microchip_id;

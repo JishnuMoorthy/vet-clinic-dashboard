@@ -941,6 +941,7 @@ export type Database = {
           password_hash: string
           phone: string | null
           role: string
+          specialties: string[] | null
           updated_at: string | null
         }
         Insert: {
@@ -955,6 +956,7 @@ export type Database = {
           password_hash: string
           phone?: string | null
           role: string
+          specialties?: string[] | null
           updated_at?: string | null
         }
         Update: {
@@ -969,6 +971,7 @@ export type Database = {
           password_hash?: string
           phone?: string | null
           role?: string
+          specialties?: string[] | null
           updated_at?: string | null
         }
         Relationships: [

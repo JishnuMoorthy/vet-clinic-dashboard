@@ -40,8 +40,11 @@ export function mapOwner(o: any): PetOwner {
 }
 
 export function mapPet(p: any): Pet {
+  // DB stores gender as lowercase; frontend expects capitalized
+  const gender = p.gender ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1) : p.gender;
   return {
     ...p,
+    gender,
     status: p.health_status || p.status || "active",
     weight: p.weight_kg ?? p.weight,
     owner: p.pet_owners ? mapOwner(p.pet_owners) : p.owner ? mapOwner(p.owner) : undefined,

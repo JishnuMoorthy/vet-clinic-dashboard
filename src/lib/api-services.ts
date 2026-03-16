@@ -31,6 +31,7 @@ export function mapUser(u: any): User {
     ...u,
     full_name: u.name || u.full_name || "",
     role: (u.role || "staff") as UserRole,
+    specialties: u.specialties || [],
   };
 }
 

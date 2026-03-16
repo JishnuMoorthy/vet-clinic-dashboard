@@ -88,7 +88,7 @@ export default function ServicesCatalog() {
     const svc = services.find((s: any) => s.id === id);
     if (!svc) return;
     setEditId(id);
-    setForm({ name: svc.name, category: svc.category, price: svc.price.toString(), description: svc.description || "", is_active: svc.is_active });
+    setForm({ name: svc.name, category: (svc.category || "other") as ServiceCategory, price: svc.price.toString(), description: svc.description || "", is_active: svc.is_active });
     setDialogOpen(true);
   };
 

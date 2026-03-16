@@ -819,6 +819,7 @@ export async function createStaff(data: Partial<User>): Promise<User> {
       phone: data.phone || null,
       password_hash: passwordHash,
       is_active: true,
+      specialties: data.specialties || [],
     }).select().single();
     if (error) throw error;
     return mapUser(row);

@@ -129,11 +129,11 @@ export default function AppointmentsCalendar() {
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const timeGridRef = useRef<HTMLDivElement>(null);
 
-  // Filters
-  const [filterVet, setFilterVet] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterPet, setFilterPet] = useState("all");
-  const [filterOwner, setFilterOwner] = useState("all");
+  // Filters (empty array = all selected)
+  const [filterVets, setFilterVets] = useState<string[]>([]);
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
+  const [filterPets, setFilterPets] = useState<string[]>([]);
+  const [filterOwners, setFilterOwners] = useState<string[]>([]);
 
   const { data: apptData } = useQuery({
     queryKey: ["appointments"],

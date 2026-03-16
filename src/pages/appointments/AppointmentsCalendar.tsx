@@ -255,10 +255,10 @@ export default function AppointmentsCalendar() {
     appointments.filter((a) => isSameDay(parseISO(a.date), day));
 
   const clearFilters = () => {
-    setFilterVet("all");
-    setFilterStatus("all");
-    setFilterPet("all");
-    setFilterOwner("all");
+    setFilterVets([]);
+    setFilterStatuses([]);
+    setFilterPets([]);
+    setFilterOwners([]);
   };
 
   return (

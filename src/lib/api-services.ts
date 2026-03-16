@@ -118,8 +118,8 @@ export async function getDashboardStats(): Promise<DashboardData> {
         .order("created_at", { ascending: false }).limit(5),
       supabase.from("inventory").select("*")
         .eq("clinic_id", clinicId).eq("is_deleted", false)
-        .or("quantity.eq.0,quantity.lte.low_stock_threshold")
-        .limit(10),
+        .order("quantity", { ascending: true })
+        .limit(20),
     ]);
 
     return {

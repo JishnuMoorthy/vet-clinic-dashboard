@@ -1,4 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getOwner, deleteOwner, getPets, getInvoices } from "@/lib/api-services";
 import { mockOwners, mockPets, mockAppointments, mockInvoices } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -13,14 +15,43 @@ export default function OwnerDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
-  const owner = mockOwners.find((o) => o.id === id);
+
+  const { data: owner } = useQuery({
+    queryKey: ["owner", id],
+    queryFn: () => getOwner(id!),
+    enabled: !!id,
+    placeholderData: mockOwners.find((o) => o.id === id),
+  });
+
+  const { data: petsRes } = useQuery({
+    queryKey: ["pets"],
+    queryFn: () => getPets(),
+  });
+
+  const { data: invoicesRes } = useQuery({
+    queryKey: ["invoices"],
+    queryFn: () => getInvoices(),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteOwner(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owners"] });
+      toast({ title: `${owner?.full_name} deleted` });
+      navigate("/owners");
+    },
+  });
 
   if (!owner) return <div className="p-6">Owner not found.</div>;
 
-  const ownerPets = mockPets.filter((p) => p.owner_id === owner.id);
+  const allPets = petsRes?.data ?? mockPets;
+  const allInvoices = invoicesRes?.data ?? mockInvoices;
+
+  const ownerPets = allPets.filter((p) => p.owner_id === owner.id);
   const ownerAppointments = mockAppointments.filter((a) => ownerPets.some((p) => p.id === a.pet_id));
-  const ownerInvoices = mockInvoices.filter((i) => i.owner_id === owner.id);
+  const ownerInvoices = allInvoices.filter((i) => i.owner_id === owner.id);
 
   return (
     <div className="space-y-6">
@@ -79,7 +110,7 @@ export default function OwnerDetail() {
         onOpenChange={setShowDelete}
         title="Delete Owner"
         description={`Are you sure you want to delete ${owner.full_name}?`}
-        onConfirm={() => { toast({ title: `${owner.full_name} deleted (mock)` }); navigate("/owners"); }}
+        onConfirm={() => deleteMutation.mutate()}
         destructive
       />
     </div>

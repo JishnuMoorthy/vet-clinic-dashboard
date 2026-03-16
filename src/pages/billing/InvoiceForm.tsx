@@ -1,5 +1,7 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getPets, getInvoices, getInventory, createInvoice } from "@/lib/api-services";
 import { mockPets, mockInvoices, mockServices, mockInventory } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -120,13 +122,20 @@ export default function InvoiceForm() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+
+  const { data: petsRes } = useQuery({ queryKey: ["pets"], queryFn: () => getPets() });
+  const { data: invoicesRes } = useQuery({ queryKey: ["invoices"], queryFn: () => getInvoices() });
+
+  const allPets = petsRes?.data ?? mockPets;
+  const allInvoices = invoicesRes?.data ?? mockInvoices;
 
   const prefillPetId = searchParams.get("pet_id") || "";
   const prefillReason = searchParams.get("reason") || "";
   const cloneFrom = searchParams.get("clone_from") || "";
 
-  const cloneSource = cloneFrom ? mockInvoices.find((i) => i.id === cloneFrom) : null;
+  const cloneSource = cloneFrom ? allInvoices.find((i) => i.id === cloneFrom) : null;
 
   const [petId, setPetId] = useState(cloneSource?.pet_id || prefillPetId);
   const [discount, setDiscount] = useState(cloneSource?.discount?.toString() || "");
@@ -138,9 +147,8 @@ export default function InvoiceForm() {
     return [{ description: prefillReason ? `${prefillReason} — Consultation` : "", quantity: 1, unit_price: prefillReason ? 500 : 0 }];
   });
   const [submitted, setSubmitted] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
-  const selectedPet = mockPets.find((p) => p.id === petId);
+  const selectedPet = allPets.find((p) => p.id === petId);
 
   const isDirty = !!petId || !!dueDate || items.some((li) => li.description !== "" || li.unit_price > 0);
   useUnsavedChanges(isDirty && !submitted);
@@ -189,6 +197,41 @@ export default function InvoiceForm() {
   const subtotal = items.reduce((sum, li) => sum + li.quantity * li.unit_price, 0);
   const total = subtotal - (parseFloat(discount) || 0);
 
+  const mutation = useMutation({
+    mutationFn: () => {
+      const lineItems = items.map((li, idx) => ({
+        id: `li-${Date.now()}-${idx}`,
+        description: li.description,
+        quantity: li.quantity,
+        unit_price: li.unit_price,
+        total: li.quantity * li.unit_price,
+      }));
+      const discountVal = parseFloat(discount) || 0;
+      return createInvoice({
+        pet_id: petId,
+        owner_id: selectedPet?.owner_id || "",
+        line_items: lineItems,
+        subtotal,
+        discount: discountVal || undefined,
+        total: Math.max(0, total),
+        due_date: dueDate,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      setSubmitted(true);
+      localStorage.removeItem(DRAFT_KEY);
+      toast({
+        title: "Invoice created!",
+        description: `₹${Math.max(0, total).toLocaleString()} billed to ${selectedPet?.owner?.full_name}`,
+      });
+      navigate("/billing");
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "Failed to create invoice", variant: "destructive" });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
@@ -196,14 +239,7 @@ export default function InvoiceForm() {
       toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
-    setIsSaving(true);
-    localStorage.removeItem(DRAFT_KEY);
-    toast({
-      title: "Invoice created!",
-      description: `₹${Math.max(0, total).toLocaleString()} billed to ${selectedPet?.owner?.full_name}`,
-    });
-    setIsSaving(false);
-    navigate("/billing");
+    mutation.mutate();
   };
 
   return (
@@ -223,7 +259,7 @@ export default function InvoiceForm() {
                 <Select value={petId} onValueChange={setPetId}>
                   <SelectTrigger className={submitted && !petId ? "border-destructive" : ""}><SelectValue placeholder="Select pet" /></SelectTrigger>
                   <SelectContent>
-                    {mockPets.map((p) => (
+                    {allPets.map((p) => (
                       <SelectItem key={p.id} value={p.id}>{p.name} ({p.owner?.full_name})</SelectItem>
                     ))}
                   </SelectContent>
@@ -297,9 +333,9 @@ export default function InvoiceForm() {
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit" disabled={isSaving}>
+              <Button type="submit" disabled={mutation.isPending}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                {isSaving ? "Creating..." : "Create Invoice"}
+                {mutation.isPending ? "Creating..." : "Create Invoice"}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/billing")}>Cancel</Button>
             </div>

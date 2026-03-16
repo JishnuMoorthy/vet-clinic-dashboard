@@ -37,57 +37,67 @@ import {
   Stethoscope,
 } from "lucide-react";
 import { mockAppointments, mockInvoices, mockInventory, mockPets, mockOwners, mockUsers } from "@/lib/mock-data";
+import { getAppointments, getInvoices, getInventory, getPets, getOwners, getStaff } from "@/lib/api-services";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import type { Appointment, Invoice, InventoryItem, Pet, PetOwner, User } from "@/types/api";
 
 // ─── Derived KPIs ───────────────────────────────────────────────
 
-function useClinicMetrics() {
+function useClinicMetrics(
+  appointments: Appointment[],
+  invoices: Invoice[],
+  inventory: InventoryItem[],
+  pets: Pet[],
+  owners: PetOwner[],
+  users: User[]
+) {
   return useMemo(() => {
     const today = new Date().toISOString().split("T")[0];
 
     // ── Appointment KPIs ──
-    const totalApts = mockAppointments.length;
-    const completed = mockAppointments.filter((a) => a.status === "completed").length;
-    const cancelled = mockAppointments.filter((a) => a.status === "cancelled").length;
-    const noShows = mockAppointments.filter((a) => a.status === "no-show").length;
-    const scheduled = mockAppointments.filter((a) => a.status === "scheduled").length;
-    const todaysApts = mockAppointments.filter((a) => a.date === today).length;
+    const totalApts = appointments.length;
+    const completed = appointments.filter((a) => a.status === "completed").length;
+    const cancelled = appointments.filter((a) => a.status === "cancelled").length;
+    const noShows = appointments.filter((a) => a.status === "no-show").length;
+    const scheduled = appointments.filter((a) => a.status === "scheduled").length;
+    const todaysApts = appointments.filter((a) => a.date === today).length;
     const completionRate = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
     const cancellationRate = totalApts > 0 ? Math.round(((cancelled + noShows) / totalApts) * 100) : 0;
 
     // ── Revenue KPIs ──
-    const totalRevenue = mockInvoices.reduce((s, i) => s + i.total, 0);
-    const paidRevenue = mockInvoices.filter((i) => i.status === "paid").reduce((s, i) => s + i.total, 0);
-    const pendingRevenue = mockInvoices.filter((i) => i.status === "pending").reduce((s, i) => s + i.total, 0);
-    const overdueRevenue = mockInvoices.filter((i) => i.status === "overdue").reduce((s, i) => s + i.total, 0);
+    const totalRevenue = invoices.reduce((s, i) => s + i.total, 0);
+    const paidRevenue = invoices.filter((i) => i.status === "paid").reduce((s, i) => s + i.total, 0);
+    const pendingRevenue = invoices.filter((i) => i.status === "pending").reduce((s, i) => s + i.total, 0);
+    const overdueRevenue = invoices.filter((i) => i.status === "overdue").reduce((s, i) => s + i.total, 0);
     const collectionRate = totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 100) : 0;
-    const avgTransaction = mockInvoices.length > 0 ? Math.round(totalRevenue / mockInvoices.length) : 0;
+    const avgTransaction = invoices.length > 0 ? Math.round(totalRevenue / invoices.length) : 0;
 
     // ── Patient KPIs ──
-    const speciesBreakdown = mockPets.reduce<Record<string, number>>((acc, p) => {
+    const speciesBreakdown = pets.reduce<Record<string, number>>((acc, p) => {
       acc[p.species] = (acc[p.species] || 0) + 1;
       return acc;
     }, {});
     const speciesData = Object.entries(speciesBreakdown).map(([name, value]) => ({ name, value }));
 
     // ── Inventory KPIs ──
-    const totalItems = mockInventory.length;
-    const lowStock = mockInventory.filter((i) => i.status === "low").length;
-    const outOfStock = mockInventory.filter((i) => i.status === "out").length;
+    const totalItems = inventory.length;
+    const lowStock = inventory.filter((i) => i.status === "low").length;
+    const outOfStock = inventory.filter((i) => i.status === "out").length;
     const inventoryHealth = totalItems > 0 ? Math.round(((totalItems - lowStock - outOfStock) / totalItems) * 100) : 0;
 
     const now = new Date();
     const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    const expiringSoon = mockInventory.filter((i) => {
+    const expiringSoon = inventory.filter((i) => {
       if (!i.expiry_date) return false;
       const exp = new Date(i.expiry_date);
       return exp <= thirtyDays && exp >= now;
     });
 
     // ── Staff Productivity ──
-    const vets = mockUsers.filter((u) => u.role === "vet" && u.is_active);
+    const vets = users.filter((u) => u.role === "vet" && u.is_active);
     const vetProductivity = vets.map((vet) => {
-      const vetApts = mockAppointments.filter((a) => a.vet_id === vet.id);
+      const vetApts = appointments.filter((a) => a.vet_id === vet.id);
       const vetCompleted = vetApts.filter((a) => a.status === "completed").length;
       return {
         name: vet.full_name.replace("Dr. ", ""),
@@ -113,7 +123,7 @@ function useClinicMetrics() {
 
     // ── Revenue per service category (from line items) ──
     const serviceRevenue: Record<string, number> = {};
-    mockInvoices.forEach((inv) => {
+    invoices.forEach((inv) => {
       inv.line_items.forEach((li) => {
         const cat = li.description.toLowerCase().includes("consult")
           ? "Consultation"
@@ -145,8 +155,8 @@ function useClinicMetrics() {
       collectionRate,
       avgTransaction,
       speciesData,
-      totalPets: mockPets.length,
-      totalOwners: mockOwners.length,
+      totalPets: pets.length,
+      totalOwners: owners.length,
       lowStock,
       outOfStock,
       inventoryHealth,
@@ -156,7 +166,7 @@ function useClinicMetrics() {
       revenueStatusData,
       serviceRevenueData,
     };
-  }, []);
+  }, [appointments, invoices, inventory, pets, owners, users]);
 }
 
 // ─── Chart Configs ──────────────────────────────────────────────
@@ -220,8 +230,23 @@ function MetricCard({
 // ─── Main Dashboard ─────────────────────────────────────────────
 
 export default function ClinicDashboard() {
-  const m = useClinicMetrics();
   const navigate = useNavigate();
+
+  const { data: appointmentsRes } = useQuery({ queryKey: ["appointments"], queryFn: () => getAppointments() });
+  const { data: invoicesRes } = useQuery({ queryKey: ["invoices"], queryFn: () => getInvoices() });
+  const { data: inventoryRes } = useQuery({ queryKey: ["inventory"], queryFn: () => getInventory() });
+  const { data: petsRes } = useQuery({ queryKey: ["pets"], queryFn: () => getPets() });
+  const { data: ownersRes } = useQuery({ queryKey: ["owners"], queryFn: () => getOwners() });
+  const { data: staffRes } = useQuery({ queryKey: ["staff"], queryFn: () => getStaff() });
+
+  const appointments = appointmentsRes?.data ?? mockAppointments;
+  const invoices = invoicesRes?.data ?? mockInvoices;
+  const inventory = inventoryRes?.data ?? mockInventory;
+  const pets = petsRes?.data ?? mockPets;
+  const owners = ownersRes?.data ?? mockOwners;
+  const users = staffRes?.data ?? mockUsers;
+
+  const m = useClinicMetrics(appointments, invoices, inventory, pets, owners, users);
 
   const PIE_COLORS = ["hsl(152, 60%, 40%)", "hsl(21, 100%, 56%)", "hsl(38, 92%, 50%)", "hsl(0, 72%, 51%)"];
 
@@ -478,7 +503,7 @@ export default function ClinicDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {mockInventory
+              {inventory
                 .filter((i) => i.status !== "ok")
                 .map((item) => (
                   <div

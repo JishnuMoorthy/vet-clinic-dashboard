@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { getOwners } from "@/lib/api-services";
 import { mockOwners } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
@@ -11,7 +13,14 @@ export default function OwnersList() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
 
-  const filtered = mockOwners.filter(
+  const { data: ownersRes } = useQuery({
+    queryKey: ["owners"],
+    queryFn: () => getOwners(),
+  });
+
+  const owners = ownersRes?.data ?? mockOwners;
+
+  const filtered = owners.filter(
     (o) =>
       o.full_name.toLowerCase().includes(search.toLowerCase()) ||
       o.phone.includes(search) ||
@@ -22,7 +31,7 @@ export default function OwnersList() {
     <div className="space-y-4">
       <PageHeader
         title="Pet Owners"
-        subtitle={`${mockOwners.length} owners in your directory`}
+        subtitle={`${owners.length} owners in your directory`}
         actionLabel="Add Owner"
         onAction={() => navigate("/owners/new")}
         helpText="Click any row to see the owner's profile and their pets."

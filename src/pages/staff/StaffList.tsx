@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getStaff, deleteStaff } from "@/lib/api-services";
 import { mockUsers } from "@/lib/mock-data";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
@@ -16,17 +18,35 @@ export default function StaffList() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const filtered = mockUsers.filter(
+  const { data: staffRes } = useQuery({
+    queryKey: ["staff"],
+    queryFn: () => getStaff(),
+  });
+
+  const users = staffRes?.data ?? mockUsers;
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteStaff(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
+      const deletedUser = users.find((u) => u.id === deleteId);
+      toast({ title: `${deletedUser?.full_name} removed` });
+      setDeleteId(null);
+    },
+  });
+
+  const filtered = users.filter(
     (u) =>
       u.full_name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase()) ||
       u.role.toLowerCase().includes(search.toLowerCase())
   );
 
-  const deleteName = mockUsers.find((u) => u.id === deleteId)?.full_name;
+  const deleteName = users.find((u) => u.id === deleteId)?.full_name;
   const isSelfDelete = deleteId === currentUser?.id;
 
   const handleDeleteAttempt = (userId: string) => {
@@ -131,7 +151,7 @@ export default function StaffList() {
         onOpenChange={() => setDeleteId(null)}
         title="Remove Staff"
         description={`Are you sure you want to remove ${deleteName}? They will lose access to the system.`}
-        onConfirm={() => { toast({ title: `${deleteName} removed (mock)` }); setDeleteId(null); }}
+        onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
         destructive
       />
     </div>

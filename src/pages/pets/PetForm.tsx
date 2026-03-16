@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getPet, createPet, updatePet, getOwners } from "@/lib/api-services";
 import { mockPets, mockOwners } from "@/lib/mock-data";
 import { InlineOwnerModal } from "@/components/InlineOwnerModal";
 import { PageHeader } from "@/components/PageHeader";
@@ -21,31 +23,63 @@ export default function PetForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const isEdit = !!id;
-  const existing = isEdit ? mockPets.find((p) => p.id === id) : null;
+
+  const { data: existing } = useQuery({
+    queryKey: ["pet", id],
+    queryFn: () => getPet(id!),
+    enabled: isEdit,
+    placeholderData: isEdit ? mockPets.find((p) => p.id === id) : undefined,
+  });
+
+  const { data: ownersRes } = useQuery({
+    queryKey: ["owners"],
+    queryFn: () => getOwners(),
+  });
+
+  const owners = ownersRes?.data ?? mockOwners;
 
   const [form, setForm] = useState({
-    name: existing?.name || "",
-    species: existing?.species || "Dog",
-    breed: existing?.breed || "",
-    gender: existing?.gender || "",
-    date_of_birth: existing?.date_of_birth || "",
-    weight: existing?.weight?.toString() || "",
-    microchip_id: existing?.microchip_id || "",
-    owner_id: existing?.owner_id || "",
-    notes: existing?.notes || "",
+    name: "",
+    species: "Dog",
+    breed: "",
+    gender: "",
+    date_of_birth: "",
+    weight: "",
+    microchip_id: "",
+    owner_id: "",
+    notes: "",
   });
+
+  useEffect(() => {
+    if (existing) {
+      setForm({
+        name: existing.name || "",
+        species: existing.species || "Dog",
+        breed: existing.breed || "",
+        gender: existing.gender || "",
+        date_of_birth: existing.date_of_birth || "",
+        weight: existing.weight?.toString() || "",
+        microchip_id: existing.microchip_id || "",
+        owner_id: existing.owner_id || "",
+        notes: existing.notes || "",
+      });
+      if (existing.date_of_birth) {
+        setDobDate(new Date(existing.date_of_birth));
+        setDobMonth(new Date(existing.date_of_birth));
+      }
+      setPhotoPreview(existing.photo_url);
+    }
+  }, [existing]);
 
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [showOwnerModal, setShowOwnerModal] = useState(false);
   const [ownerSearch, setOwnerSearch] = useState("");
-  const [dobDate, setDobDate] = useState<Date | undefined>(
-    existing?.date_of_birth ? new Date(existing.date_of_birth) : undefined
-  );
-  const [dobMonth, setDobMonth] = useState<Date>(dobDate || new Date());
-  const [isSaving, setIsSaving] = useState(false);
+  const [dobDate, setDobDate] = useState<Date | undefined>(undefined);
+  const [dobMonth, setDobMonth] = useState<Date>(new Date());
   const [showConfirm, setShowConfirm] = useState(false);
-  const [photoPreview, setPhotoPreview] = useState<string | undefined>(existing?.photo_url);
+  const [photoPreview, setPhotoPreview] = useState<string | undefined>(undefined);
 
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -55,31 +89,33 @@ export default function PetForm() {
   if (!form.owner_id && touched.owner_id) errors.owner_id = "Please select who owns this pet";
 
   const filteredOwners = ownerSearch
-    ? mockOwners.filter((o) => o.full_name.toLowerCase().includes(ownerSearch.toLowerCase()) || o.phone.includes(ownerSearch))
-    : mockOwners;
+    ? owners.filter((o) => o.full_name.toLowerCase().includes(ownerSearch.toLowerCase()) || o.phone.includes(ownerSearch))
+    : owners;
 
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: currentYear - 2004 }, (_, i) => currentYear - i);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const mutation = useMutation({
+    mutationFn: (data: typeof form) => {
+      const payload = {
+        ...data,
+        weight: data.weight ? parseFloat(data.weight) : undefined,
+        photo_url: photoPreview,
+      };
+      return isEdit ? updatePet(id!, payload) : createPet(payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pets"] });
+      if (isEdit) queryClient.invalidateQueries({ queryKey: ["pet", id] });
+      toast({
+        title: isEdit ? `${form.name} updated successfully` : `${form.name} registered!`,
+        description: isEdit ? "Pet record has been saved." : "The pet has been added to your clinic.",
+      });
+      navigate("/pets");
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "Failed to save pet", variant: "destructive" });
+    },
+  });
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setPhotoPreview(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const doSubmit = () => {
-    setIsSaving(true);
-    toast({
-      title: isEdit ? `${form.name} updated successfully` : `${form.name} registered!`,
-      description: isEdit ? "Pet record has been saved." : "The pet has been added to your clinic.",
-    });
-    setIsSaving(false);
-    navigate("/pets");
-  };
+  const doSubmit = () => mutation.mutate(form);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,6 +128,18 @@ export default function PetForm() {
       setShowConfirm(true);
     } else {
       doSubmit();
+    }
+  };
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: currentYear - 2004 }, (_, i) => currentYear - i);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setPhotoPreview(reader.result as string);
+      reader.readAsDataURL(file);
     }
   };
 
@@ -260,9 +308,9 @@ export default function PetForm() {
               <Textarea value={form.notes} onChange={(e) => update("notes", e.target.value)} placeholder="Any allergies, temperament, or special needs..." />
             </div>
             <div className="flex gap-2 sm:col-span-2 pt-2">
-              <Button type="submit" disabled={isSaving}>
+              <Button type="submit" disabled={mutation.isPending}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : isEdit ? "Save Changes" : "Register Pet"}
+                {mutation.isPending ? "Saving..." : isEdit ? "Save Changes" : "Register Pet"}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/pets")}>Cancel</Button>
             </div>

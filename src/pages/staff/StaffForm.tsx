@@ -1,5 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getStaffMember, createStaff, updateStaff } from "@/lib/api-services";
 import { mockUsers } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,17 +25,36 @@ export default function StaffForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const isEdit = !!id;
-  const existing = isEdit ? mockUsers.find((u) => u.id === id) : null;
+
+  const { data: existing } = useQuery({
+    queryKey: ["staff-member", id],
+    queryFn: () => getStaffMember(id!),
+    enabled: isEdit,
+    placeholderData: isEdit ? mockUsers.find((u) => u.id === id) : undefined,
+  });
 
   const [form, setForm] = useState({
-    full_name: existing?.full_name || "",
-    email: existing?.email || "",
-    phone: existing?.phone || "",
-    role: existing?.role || "staff",
+    full_name: "",
+    email: "",
+    phone: "",
+    role: "staff",
   });
-  const [specialties, setSpecialties] = useState<string[]>(existing?.specialties || []);
+  const [specialties, setSpecialties] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (existing) {
+      setForm({
+        full_name: existing.full_name || "",
+        email: existing.email || "",
+        phone: existing.phone || "",
+        role: existing.role || "staff",
+      });
+      setSpecialties(existing.specialties || []);
+    }
+  }, [existing]);
 
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
@@ -54,6 +75,26 @@ export default function StaffForm() {
   };
   const removeSpecialty = (s: string) => setSpecialties((prev) => prev.filter((x) => x !== s));
 
+  const mutation = useMutation({
+    mutationFn: (data: typeof form) =>
+      isEdit
+        ? updateStaff(id!, { ...data, specialties })
+        : createStaff({ ...data, specialties }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
+      if (isEdit) queryClient.invalidateQueries({ queryKey: ["staff-member", id] });
+      setSubmitted(true);
+      toast({
+        title: isEdit ? `${form.full_name} updated` : `${form.full_name} added!`,
+        description: isEdit ? "Staff record saved." : "Team member can now log in with their email.",
+      });
+      navigate("/staff");
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "Failed to save staff member", variant: "destructive" });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.full_name || !form.email) {
@@ -61,12 +102,7 @@ export default function StaffForm() {
       toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
-    setSubmitted(true);
-    toast({
-      title: isEdit ? `${form.full_name} updated` : `${form.full_name} added!`,
-      description: isEdit ? "Staff record saved." : "Team member can now log in with their email.",
-    });
-    navigate("/staff");
+    mutation.mutate(form);
   };
 
   return (
@@ -151,9 +187,9 @@ export default function StaffForm() {
               </div>
             )}
             <div className="flex gap-2 sm:col-span-2 pt-2">
-              <Button type="submit">
+              <Button type="submit" disabled={mutation.isPending}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                {isEdit ? "Save Changes" : "Add Team Member"}
+                {mutation.isPending ? "Saving..." : isEdit ? "Save Changes" : "Add Team Member"}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/staff")}>Cancel</Button>
             </div>

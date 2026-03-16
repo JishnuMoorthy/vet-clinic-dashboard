@@ -1,5 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getInventoryItem, createInventoryItem, updateInventoryItem } from "@/lib/api-services";
 import { mockInventory } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,20 +20,41 @@ export default function InventoryForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const isEdit = !!id;
-  const existing = isEdit ? mockInventory.find((i) => i.id === id) : null;
+
+  const { data: existing } = useQuery({
+    queryKey: ["inventory-item", id],
+    queryFn: () => getInventoryItem(id!),
+    enabled: isEdit,
+    placeholderData: isEdit ? mockInventory.find((i) => i.id === id) : undefined,
+  });
 
   const [form, setForm] = useState({
-    name: existing?.name || "",
-    category: existing?.category || "Medications",
-    quantity: existing?.quantity?.toString() || "",
-    reorder_level: existing?.reorder_level?.toString() || "",
-    unit_price: existing?.unit_price?.toString() || "",
-    supplier: existing?.supplier || "",
-    expiry_date: existing?.expiry_date || "",
+    name: "",
+    category: "Medications",
+    quantity: "",
+    reorder_level: "",
+    unit_price: "",
+    supplier: "",
+    expiry_date: "",
   });
-  const [submitted, setSubmitted] = useState(false);
 
+  useEffect(() => {
+    if (existing) {
+      setForm({
+        name: existing.name || "",
+        category: existing.category || "Medications",
+        quantity: existing.quantity?.toString() || "",
+        reorder_level: existing.reorder_level?.toString() || "",
+        unit_price: existing.unit_price?.toString() || "",
+        supplier: existing.supplier || "",
+        expiry_date: existing.expiry_date || "",
+      });
+    }
+  }, [existing]);
+
+  const [submitted, setSubmitted] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -44,6 +67,31 @@ export default function InventoryForm() {
   if (!form.quantity && touched.quantity) errors.quantity = "Enter current stock count";
   if (!form.reorder_level && touched.reorder_level) errors.reorder_level = "Set minimum stock level for alerts";
 
+  const mutation = useMutation({
+    mutationFn: (data: typeof form) => {
+      const payload = {
+        ...data,
+        quantity: parseInt(data.quantity, 10),
+        reorder_level: parseInt(data.reorder_level, 10),
+        unit_price: data.unit_price ? parseFloat(data.unit_price) : undefined,
+      };
+      return isEdit ? updateInventoryItem(id!, payload) : createInventoryItem(payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      if (isEdit) queryClient.invalidateQueries({ queryKey: ["inventory-item", id] });
+      setSubmitted(true);
+      toast({
+        title: isEdit ? `${form.name} updated` : `${form.name} added to inventory`,
+        description: isEdit ? "Stock record saved." : "Item is now tracked in your inventory.",
+      });
+      navigate("/inventory");
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "Failed to save item", variant: "destructive" });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.quantity || !form.reorder_level) {
@@ -51,12 +99,7 @@ export default function InventoryForm() {
       toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
-    setSubmitted(true);
-    toast({
-      title: isEdit ? `${form.name} updated` : `${form.name} added to inventory`,
-      description: isEdit ? "Stock record saved." : "Item is now tracked in your inventory.",
-    });
-    navigate("/inventory");
+    mutation.mutate(form);
   };
 
   return (
@@ -133,7 +176,7 @@ export default function InventoryForm() {
             <div className="flex gap-2 sm:col-span-2 pt-2">
               <Button type="submit">
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                {isEdit ? "Save Changes" : "Add to Inventory"}
+                {mutation.isPending ? "Saving..." : isEdit ? "Save Changes" : "Add to Inventory"}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/inventory")}>Cancel</Button>
             </div>

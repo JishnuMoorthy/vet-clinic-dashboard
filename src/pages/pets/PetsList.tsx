@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { getPets } from "@/lib/api-services";
 import { mockPets } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -12,7 +14,14 @@ export default function PetsList() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
 
-  const filtered = mockPets.filter(
+  const { data: petsRes } = useQuery({
+    queryKey: ["pets"],
+    queryFn: () => getPets(),
+  });
+
+  const pets = petsRes?.data ?? mockPets;
+
+  const filtered = pets.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.breed?.toLowerCase().includes(search.toLowerCase()) ||
@@ -24,7 +33,7 @@ export default function PetsList() {
     <div className="space-y-4">
       <PageHeader
         title="Pets"
-        subtitle={`${mockPets.length} pets registered at your clinic`}
+        subtitle={`${pets.length} pets registered at your clinic`}
         actionLabel="Add Pet"
         onAction={() => navigate("/pets/new")}
         helpText="Click any row to view the pet's full profile and medical history."

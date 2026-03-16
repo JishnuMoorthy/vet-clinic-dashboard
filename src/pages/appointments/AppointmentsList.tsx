@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAppointments, updateAppointment, deleteAppointment } from "@/lib/api-services";
 import { mockAppointments } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -15,11 +17,37 @@ import { Search, CheckCircle, XCircle } from "lucide-react";
 export default function AppointmentsList() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [cancelId, setCancelId] = useState<string | null>(null);
 
-  const filtered = mockAppointments.filter((a) => {
+  const { data: appointmentsRes } = useQuery({
+    queryKey: ["appointments"],
+    queryFn: () => getAppointments(),
+  });
+
+  const appointments = appointmentsRes?.data ?? mockAppointments;
+
+  const completeMutation = useMutation({
+    mutationFn: (id: string) => updateAppointment(id, { status: "completed" }),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      const apt = appointments.find((a) => a.id === id);
+      toast({ title: `${apt?.pet?.name} appointment completed` });
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => updateAppointment(id, { status: "cancelled" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast({ title: "Appointment cancelled" });
+      setCancelId(null);
+    },
+  });
+
+  const filtered = appointments.filter((a) => {
     const matchSearch =
       a.pet?.name.toLowerCase().includes(search.toLowerCase()) ||
       a.vet?.full_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -76,7 +104,7 @@ export default function AppointmentsList() {
                   <TableCell className="text-right">
                     {apt.status === "scheduled" && (
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" title="Mark Complete" onClick={() => toast({ title: `${apt.pet?.name} appointment completed (mock)` })}>
+                        <Button variant="ghost" size="icon" title="Mark Complete" onClick={() => completeMutation.mutate(apt.id)}>
                           <CheckCircle className="h-4 w-4 text-success" />
                         </Button>
                         <Button variant="ghost" size="icon" title="Cancel" onClick={() => setCancelId(apt.id)}>
@@ -97,7 +125,7 @@ export default function AppointmentsList() {
         onOpenChange={() => setCancelId(null)}
         title="Cancel Appointment"
         description="Are you sure you want to cancel this appointment?"
-        onConfirm={() => { toast({ title: "Appointment cancelled (mock)" }); setCancelId(null); }}
+        onConfirm={() => cancelId && cancelMutation.mutate(cancelId)}
         destructive
       />
     </div>

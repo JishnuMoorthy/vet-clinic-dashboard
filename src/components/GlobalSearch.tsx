@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { getOwners, getPets } from "@/lib/api-services";
 import { mockOwners, mockPets } from "@/lib/mock-data";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
@@ -19,11 +21,26 @@ export function GlobalSearch() {
   }, [query]);
 
   const q = debouncedQuery.toLowerCase().trim();
+
+  const { data: ownersRes } = useQuery({
+    queryKey: ["owners", "search", debouncedQuery],
+    queryFn: () => getOwners({ search: debouncedQuery, limit: 5 }),
+    enabled: !!debouncedQuery,
+    placeholderData: (prev) => prev,
+  });
+
+  const { data: petsRes } = useQuery({
+    queryKey: ["pets", "search", debouncedQuery],
+    queryFn: () => getPets({ search: debouncedQuery, limit: 5 }),
+    enabled: !!debouncedQuery,
+    placeholderData: (prev) => prev,
+  });
+
   const ownerResults = q
-    ? mockOwners.filter((o) => o.full_name.toLowerCase().includes(q) || o.phone.includes(q)).slice(0, 5)
+    ? (ownersRes?.data ?? mockOwners.filter((o) => o.full_name.toLowerCase().includes(q) || o.phone.includes(q)).slice(0, 5))
     : [];
   const petResults = q
-    ? mockPets.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 5)
+    ? (petsRes?.data ?? mockPets.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 5))
     : [];
   const hasResults = ownerResults.length > 0 || petResults.length > 0;
 

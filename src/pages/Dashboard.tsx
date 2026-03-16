@@ -1,22 +1,29 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CalendarDays, Receipt, PawPrint, Users, AlertTriangle, Clock, ArrowRight } from "lucide-react";
 import { mockDashboardData } from "@/lib/mock-data";
+import { getDashboardStats } from "@/lib/api-services";
 import { StatusBadge } from "@/components/StatusBadge";
 import { QuickActions } from "@/components/QuickActions";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-
-const stats = [
-  { title: "Today's Appointments", value: mockDashboardData.todays_appointments, icon: CalendarDays, color: "text-primary", to: "/appointments" },
-  { title: "Pending Invoices", value: mockDashboardData.pending_invoices, icon: Receipt, color: "text-warning", to: "/billing" },
-  { title: "Total Pets", value: mockDashboardData.total_pets, icon: PawPrint, color: "text-success", to: "/pets" },
-  { title: "Total Owners", value: mockDashboardData.total_owners, icon: Users, color: "text-accent-foreground", to: "/owners" },
-];
+import { useQuery } from "@tanstack/react-query";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  const { data: dashData = mockDashboardData } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: getDashboardStats,
+  });
+
+  const stats = [
+    { title: "Today's Appointments", value: dashData.todays_appointments, icon: CalendarDays, color: "text-primary", to: "/appointments" },
+    { title: "Pending Invoices", value: dashData.pending_invoices, icon: Receipt, color: "text-warning", to: "/billing" },
+    { title: "Total Pets", value: dashData.total_pets, icon: PawPrint, color: "text-success", to: "/pets" },
+    { title: "Total Owners", value: dashData.total_owners, icon: Users, color: "text-accent-foreground", to: "/owners" },
+  ];
 
   const greeting = (() => {
     const hour = new Date().getHours();
@@ -68,10 +75,10 @@ export default function Dashboard() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
-            {mockDashboardData.upcoming_appointments.length === 0 ? (
+            {dashData.upcoming_appointments.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No upcoming appointments</p>
             ) : (
-              mockDashboardData.upcoming_appointments.map((apt) => (
+              dashData.upcoming_appointments.map((apt) => (
                 <div
                   key={apt.id}
                   className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
@@ -99,7 +106,7 @@ export default function Dashboard() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
-            {mockDashboardData.recent_invoices.map((inv) => (
+            {dashData.recent_invoices.map((inv) => (
               <div
                 key={inv.id}
                 className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
@@ -117,7 +124,7 @@ export default function Dashboard() {
       </div>
 
       {/* Low Stock Alerts */}
-      {mockDashboardData.low_stock_items.length > 0 && (
+      {dashData.low_stock_items.length > 0 && (
         <Card className="border-warning/30">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base text-warning">
@@ -128,7 +135,7 @@ export default function Dashboard() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-2">
-            {mockDashboardData.low_stock_items.map((item) => (
+            {dashData.low_stock_items.map((item) => (
               <div key={item.id} className="flex items-center justify-between rounded-lg border p-3">
                 <div>
                   <p className="font-medium text-sm">{item.name}</p>

@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getInventory, deleteInventoryItem, getPets } from "@/lib/api-services";
 import { mockInventory, mockPets } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -20,6 +22,7 @@ import { differenceInDays, parseISO } from "date-fns";
 export default function InventoryList() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [usageItem, setUsageItem] = useState<string | null>(null);
   const [usageQty, setUsageQty] = useState("1");
@@ -28,23 +31,45 @@ export default function InventoryList() {
   const [usagePetId, setUsagePetId] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const filtered = mockInventory.filter(
+  const { data: inventoryRes } = useQuery({
+    queryKey: ["inventory"],
+    queryFn: () => getInventory(),
+  });
+
+  const { data: petsRes } = useQuery({
+    queryKey: ["pets"],
+    queryFn: () => getPets(),
+  });
+
+  const inventory = inventoryRes?.data ?? mockInventory;
+  const pets = petsRes?.data ?? mockPets;
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteInventoryItem(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      toast({ title: "Item deleted" });
+      setDeleteId(null);
+    },
+  });
+
+  const filtered = inventory.filter(
     (item) =>
       item.name.toLowerCase().includes(search.toLowerCase()) ||
       item.category.toLowerCase().includes(search.toLowerCase())
   );
 
-  const selectedItem = mockInventory.find((i) => i.id === usageItem);
+  const selectedItem = inventory.find((i) => i.id === usageItem);
 
   // Items expiring within 30 days
   const expiringItems = useMemo(() => {
     const today = new Date();
-    return mockInventory.filter((item) => {
+    return inventory.filter((item) => {
       if (!item.expiry_date) return false;
       const days = differenceInDays(parseISO(item.expiry_date), today);
       return days >= 0 && days <= 30;
     });
-  }, []);
+  }, [inventory]);
 
   return (
     <div className="space-y-4">
@@ -134,7 +159,7 @@ export default function InventoryList() {
                 <SelectTrigger><SelectValue placeholder="Select pet (if applicable)" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No specific patient</SelectItem>
-                  {mockPets.map((p) => (
+                  {pets.map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.name} ({p.owner?.full_name})</SelectItem>
                   ))}
                 </SelectContent>
@@ -161,7 +186,7 @@ export default function InventoryList() {
           <DialogFooter>
             <Button onClick={() => {
               const petName = usagePetId && usagePetId !== "none"
-                ? mockPets.find(p => p.id === usagePetId)?.name
+                ? pets.find(p => p.id === usagePetId)?.name
                 : null;
               toast({
                 title: `Recorded ${usageQty} unit(s) used`,
@@ -180,7 +205,7 @@ export default function InventoryList() {
         onOpenChange={() => setDeleteId(null)}
         title="Delete Item"
         description="Are you sure you want to remove this inventory item?"
-        onConfirm={() => { toast({ title: "Item deleted (mock)" }); setDeleteId(null); }}
+        onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
         destructive
       />
     </div>

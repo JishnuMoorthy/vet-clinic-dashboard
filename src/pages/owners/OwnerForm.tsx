@@ -1,5 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getOwner, createOwner, updateOwner } from "@/lib/api-services";
 import { mockOwners } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,24 +15,58 @@ export default function OwnerForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const isEdit = !!id;
-  const existing = isEdit ? mockOwners.find((o) => o.id === id) : null;
 
-  const [form, setForm] = useState({
-    full_name: existing?.full_name || "",
-    phone: existing?.phone || "",
-    email: existing?.email || "",
-    address: existing?.address || "",
+  const { data: existing } = useQuery({
+    queryKey: ["owner", id],
+    queryFn: () => getOwner(id!),
+    enabled: isEdit,
+    placeholderData: isEdit ? mockOwners.find((o) => o.id === id) : undefined,
   });
 
+  const [form, setForm] = useState({
+    full_name: "",
+    phone: "",
+    email: "",
+    address: "",
+  });
+
+  useEffect(() => {
+    if (existing) {
+      setForm({
+        full_name: existing.full_name || "",
+        phone: existing.phone || "",
+        email: existing.email || "",
+        address: existing.address || "",
+      });
+    }
+  }, [existing]);
+
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [isSaving, setIsSaving] = useState(false);
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const errors: Record<string, string> = {};
   if (!form.full_name && touched.full_name) errors.full_name = "Please enter the owner's full name";
   if (!form.phone && touched.phone) errors.phone = "A phone number is needed to contact the owner";
+
+  const mutation = useMutation({
+    mutationFn: (data: typeof form) =>
+      isEdit ? updateOwner(id!, data) : createOwner(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owners"] });
+      if (isEdit) queryClient.invalidateQueries({ queryKey: ["owner", id] });
+      toast({
+        title: isEdit ? `${form.full_name} updated` : `${form.full_name} registered!`,
+        description: isEdit ? "Owner record saved." : "Pet parent has been added.",
+      });
+      navigate("/owners");
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "Failed to save owner", variant: "destructive" });
+    },
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,13 +75,7 @@ export default function OwnerForm() {
       toast({ title: "Please fill the highlighted fields", variant: "destructive" });
       return;
     }
-    setIsSaving(true);
-    toast({
-      title: isEdit ? `${form.full_name} updated` : `${form.full_name} registered!`,
-      description: isEdit ? "Owner record saved." : "Pet parent has been added.",
-    });
-    setIsSaving(false);
-    navigate("/owners");
+    mutation.mutate(form);
   };
 
   return (
@@ -91,9 +121,9 @@ export default function OwnerForm() {
               <Input value={form.address} onChange={(e) => update("address", e.target.value)} placeholder="e.g., 12 MG Road, Bangalore" />
             </div>
             <div className="flex gap-2 sm:col-span-2 pt-2">
-              <Button type="submit" disabled={isSaving}>
+              <Button type="submit" disabled={mutation.isPending}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : isEdit ? "Save Changes" : "Register Owner"}
+                {mutation.isPending ? "Saving..." : isEdit ? "Save Changes" : "Register Owner"}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate("/owners")}>Cancel</Button>
             </div>

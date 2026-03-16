@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getPet, deletePet, getAppointments, getInvoices } from "@/lib/api-services";
-import { mockPets, mockAppointments, mockInvoices, mockMedicalRecords, mockVaccinations } from "@/lib/mock-data";
+import { getPet, deletePet, getAppointments, getInvoices, getMedicalRecords, getVaccinations } from "@/lib/api-services";
+import { mockPets, mockAppointments, mockInvoices } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +41,18 @@ export default function PetDetail() {
     queryFn: () => getInvoices(),
   });
 
+  const { data: petRecords = [] } = useQuery({
+    queryKey: ["medical-records", pet?.id],
+    queryFn: () => getMedicalRecords({ pet_id: pet?.id }),
+    enabled: !!pet?.id,
+  });
+
+  const { data: petVaccinations = [] } = useQuery({
+    queryKey: ["vaccinations", pet?.id],
+    queryFn: () => getVaccinations({ pet_id: pet?.id }),
+    enabled: !!pet?.id,
+  });
+
   const deleteMutation = useMutation({
     mutationFn: () => deletePet(id!),
     onSuccess: () => {
@@ -57,8 +69,6 @@ export default function PetDetail() {
 
   const petAppointments = allAppointments.filter((a) => a.pet_id === pet.id);
   const petInvoices = allInvoices.filter((i) => i.pet_id === pet.id);
-  const petRecords = mockMedicalRecords.filter((r) => r.pet_id === pet.id);
-  const petVaccinations = mockVaccinations.filter((v) => v.pet_id === pet.id);
 
   const handleAppointmentClick = (apt: typeof petAppointments[0]) => {
     if (apt.status === "scheduled") {

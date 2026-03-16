@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getOwner, deleteOwner, getPets, getInvoices } from "@/lib/api-services";
-import { mockOwners, mockPets, mockAppointments, mockInvoices } from "@/lib/mock-data";
+import { getOwner, deleteOwner, getPets, getInvoices, getAppointments } from "@/lib/api-services";
+import { mockOwners, mockPets, mockInvoices } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +35,11 @@ export default function OwnerDetail() {
     queryFn: () => getInvoices(),
   });
 
+  const { data: appointmentsRes } = useQuery({
+    queryKey: ["appointments"],
+    queryFn: () => getAppointments(),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: () => deleteOwner(id!),
     onSuccess: () => {
@@ -48,9 +53,10 @@ export default function OwnerDetail() {
 
   const allPets = petsRes?.data ?? mockPets;
   const allInvoices = invoicesRes?.data ?? mockInvoices;
+  const allAppointments = appointmentsRes?.data ?? [];
 
   const ownerPets = allPets.filter((p) => p.owner_id === owner.id);
-  const ownerAppointments = mockAppointments.filter((a) => ownerPets.some((p) => p.id === a.pet_id));
+  const ownerAppointments = allAppointments.filter((a) => ownerPets.some((p) => p.id === a.pet_id));
   const ownerInvoices = allInvoices.filter((i) => i.owner_id === owner.id);
 
   return (

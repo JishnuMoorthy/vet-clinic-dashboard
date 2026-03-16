@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { MultiSelectFilter, type FilterOption } from "@/components/MultiSelectFilter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -16,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Search, PackageMinus, AlertTriangle } from "lucide-react";
+import { Search, PackageMinus, AlertTriangle, Filter } from "lucide-react";
 import { differenceInDays, parseISO } from "date-fns";
 
 export default function InventoryList() {
@@ -30,6 +31,8 @@ export default function InventoryList() {
   const [usageNotes, setUsageNotes] = useState("");
   const [usagePetId, setUsagePetId] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [filterCategories, setFilterCategories] = useState<string[]>([]);
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
 
   const { data: inventoryRes } = useQuery({
     queryKey: ["inventory"],
@@ -53,11 +56,28 @@ export default function InventoryList() {
     },
   });
 
-  const filtered = inventory.filter(
-    (item) =>
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    inventory.forEach((item) => { if (item.category) set.add(item.category); });
+    return Array.from(set).sort().map((c) => ({ id: c, label: c }));
+  }, [inventory]);
+
+  const statusOptions: FilterOption[] = [
+    { id: "in_stock", label: "In Stock" },
+    { id: "low_stock", label: "Low Stock" },
+    { id: "out_of_stock", label: "Out of Stock" },
+  ];
+
+  const hasFilters = filterCategories.length > 0 || filterStatuses.length > 0;
+
+  const filtered = inventory.filter((item) => {
+    const matchSearch =
       item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.category.toLowerCase().includes(search.toLowerCase())
-  );
+      item.category.toLowerCase().includes(search.toLowerCase());
+    const matchCategory = filterCategories.length === 0 || filterCategories.includes(item.category);
+    const matchStatus = filterStatuses.length === 0 || filterStatuses.includes(item.status);
+    return matchSearch && matchCategory && matchStatus;
+  });
 
   const selectedItem = inventory.find((i) => i.id === usageItem);
 
@@ -70,6 +90,11 @@ export default function InventoryList() {
       return days >= 0 && days <= 30;
     });
   }, [inventory]);
+
+  const clearFilters = () => {
+    setFilterCategories([]);
+    setFilterStatuses([]);
+  };
 
   return (
     <div className="space-y-4">
@@ -95,9 +120,17 @@ export default function InventoryList() {
         </div>
       )}
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search inventory..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Search inventory..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        </div>
+        <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+        <MultiSelectFilter label="Categories" options={categoryOptions} selected={filterCategories} onSelectionChange={setFilterCategories} width="w-[170px]" />
+        <MultiSelectFilter label="Status" options={statusOptions} selected={filterStatuses} onSelectionChange={setFilterStatuses} />
+        {hasFilters && (
+          <Button size="sm" variant="ghost" onClick={clearFilters}>Clear filters</Button>
+        )}
       </div>
 
       {filtered.length === 0 ? (

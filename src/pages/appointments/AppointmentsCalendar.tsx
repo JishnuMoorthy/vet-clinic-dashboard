@@ -29,7 +29,6 @@ import type { Appointment } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";

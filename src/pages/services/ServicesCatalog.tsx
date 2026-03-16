@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getServices, createService, updateService, deleteService } from "@/lib/api-services";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { MultiSelectFilter, type FilterOption } from "@/components/MultiSelectFilter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -14,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Pencil, Trash2 } from "lucide-react";
+import { Search, Pencil, Trash2, Filter } from "lucide-react";
 import type { ServiceCategory } from "@/types/api";
 
 const CATEGORIES: { value: ServiceCategory; label: string }[] = [
@@ -46,6 +47,8 @@ export default function ServicesCatalog() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [filterCategories, setFilterCategories] = useState<string[]>([]);
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
 
   const { data: services = [] } = useQuery({
     queryKey: ["services"],
@@ -72,11 +75,25 @@ export default function ServicesCatalog() {
     onError: (err: any) => toast({ title: "Failed to delete service", description: err?.message, variant: "destructive" }),
   });
 
-  const filtered = services.filter(
-    (s: any) =>
+  const categoryOptions: FilterOption[] = CATEGORIES.map((c) => ({ id: c.value, label: c.label }));
+  const statusOptions: FilterOption[] = [
+    { id: "active", label: "Active" },
+    { id: "inactive", label: "Inactive" },
+  ];
+
+  const hasFilters = filterCategories.length > 0 || filterStatuses.length > 0;
+
+  const filtered = services.filter((s: any) => {
+    const matchSearch =
       s.name.toLowerCase().includes(search.toLowerCase()) ||
-      (s.category || "").toLowerCase().includes(search.toLowerCase())
-  );
+      (s.category || "").toLowerCase().includes(search.toLowerCase());
+    const matchCategory = filterCategories.length === 0 || filterCategories.includes(s.category);
+    const matchStatus =
+      filterStatuses.length === 0 ||
+      (filterStatuses.includes("active") && s.is_active) ||
+      (filterStatuses.includes("inactive") && !s.is_active);
+    return matchSearch && matchCategory && matchStatus;
+  });
 
   const openAdd = () => {
     setEditId(null);
@@ -105,13 +122,26 @@ export default function ServicesCatalog() {
     }
   };
 
+  const clearFilters = () => {
+    setFilterCategories([]);
+    setFilterStatuses([]);
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader title="Services Catalog" subtitle="Manage clinic services and pricing" actionLabel="Add Service" onAction={openAdd} />
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search services..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Search services..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        </div>
+        <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+        <MultiSelectFilter label="Categories" options={categoryOptions} selected={filterCategories} onSelectionChange={setFilterCategories} width="w-[170px]" />
+        <MultiSelectFilter label="Status" options={statusOptions} selected={filterStatuses} onSelectionChange={setFilterStatuses} />
+        {hasFilters && (
+          <Button size="sm" variant="ghost" onClick={clearFilters}>Clear filters</Button>
+        )}
       </div>
 
       {filtered.length === 0 ? (

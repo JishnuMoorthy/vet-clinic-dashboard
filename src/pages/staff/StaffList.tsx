@@ -7,10 +7,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { MultiSelectFilter, type FilterOption } from "@/components/MultiSelectFilter";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Edit, Trash2, CheckCircle2, XCircle, Filter } from "lucide-react";
@@ -22,9 +22,9 @@ export default function StaffList() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [specialtyFilter, setSpecialtyFilter] = useState("all");
+  const [filterRoles, setFilterRoles] = useState<string[]>([]);
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
+  const [filterSpecialties, setFilterSpecialties] = useState<string[]>([]);
 
   const { data: staffRes } = useQuery({
     queryKey: ["staff"],
@@ -33,11 +33,21 @@ export default function StaffList() {
 
   const users = staffRes?.data ?? mockUsers;
 
-  // Collect unique specialties
-  const allSpecialties = useMemo(() => {
+  const roleOptions: FilterOption[] = [
+    { id: "admin", label: "Admin" },
+    { id: "vet", label: "Vet" },
+    { id: "staff", label: "Staff" },
+  ];
+
+  const statusOptions: FilterOption[] = [
+    { id: "active", label: "Active" },
+    { id: "inactive", label: "Inactive" },
+  ];
+
+  const specialtyOptions = useMemo(() => {
     const set = new Set<string>();
     users.forEach((u) => u.specialties?.forEach((s) => set.add(s)));
-    return Array.from(set).sort();
+    return Array.from(set).sort().map((s) => ({ id: s, label: s }));
   }, [users]);
 
   const deleteMutation = useMutation({
@@ -50,18 +60,20 @@ export default function StaffList() {
     },
   });
 
+  const hasFilters = filterRoles.length > 0 || filterStatuses.length > 0 || filterSpecialties.length > 0;
+
   const filtered = users.filter((u) => {
     const matchSearch =
       u.full_name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase());
-    const matchRole = roleFilter === "all" || u.role === roleFilter;
+    const matchRole = filterRoles.length === 0 || filterRoles.includes(u.role);
     const matchStatus =
-      statusFilter === "all" ||
-      (statusFilter === "active" && u.is_active) ||
-      (statusFilter === "inactive" && !u.is_active);
+      filterStatuses.length === 0 ||
+      (filterStatuses.includes("active") && u.is_active) ||
+      (filterStatuses.includes("inactive") && !u.is_active);
     const matchSpecialty =
-      specialtyFilter === "all" ||
-      (u.specialties && u.specialties.includes(specialtyFilter));
+      filterSpecialties.length === 0 ||
+      (u.specialties && filterSpecialties.some((s) => u.specialties!.includes(s)));
     return matchSearch && matchRole && matchStatus && matchSpecialty;
   });
 
@@ -80,7 +92,11 @@ export default function StaffList() {
     setDeleteId(userId);
   };
 
-  const hasFilters = roleFilter !== "all" || statusFilter !== "all" || specialtyFilter !== "all";
+  const clearFilters = () => {
+    setFilterRoles([]);
+    setFilterStatuses([]);
+    setFilterSpecialties([]);
+  };
 
   return (
     <div className="space-y-4">
@@ -90,48 +106,14 @@ export default function StaffList() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Search staff..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-[130px]">
-            <SelectValue placeholder="All Roles" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Roles</SelectItem>
-            <SelectItem value="admin">Admin</SelectItem>
-            <SelectItem value="vet">Vet</SelectItem>
-            <SelectItem value="staff">Staff</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[130px]">
-            <SelectValue placeholder="All Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-          </SelectContent>
-        </Select>
-        {allSpecialties.length > 0 && (
-          <Select value={specialtyFilter} onValueChange={setSpecialtyFilter}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="All Specialties" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Specialties</SelectItem>
-              {allSpecialties.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+        <MultiSelectFilter label="Roles" options={roleOptions} selected={filterRoles} onSelectionChange={setFilterRoles} />
+        <MultiSelectFilter label="Status" options={statusOptions} selected={filterStatuses} onSelectionChange={setFilterStatuses} />
+        {specialtyOptions.length > 0 && (
+          <MultiSelectFilter label="Specialties" options={specialtyOptions} selected={filterSpecialties} onSelectionChange={setFilterSpecialties} width="w-[170px]" />
         )}
         {hasFilters && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => { setRoleFilter("all"); setStatusFilter("all"); setSpecialtyFilter("all"); }}
-          >
-            Clear filters
-          </Button>
+          <Button size="sm" variant="ghost" onClick={clearFilters}>Clear filters</Button>
         )}
       </div>
 

@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback } from "react";
 import type { User, AuthResponse, UserRole } from "@/types/api";
-import { api } from "@/lib/api";
 import { mockLogin } from "@/lib/mock-data";
+import { supabase } from "@/lib/supabase";
+import bcrypt from "bcryptjs";
 
 interface AuthContextType {
   user: User | null;
@@ -28,18 +29,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Try real backend first
-      const data = await api.post<AuthResponse>("/auth/login", { email, password });
-      // Map backend `name` field to frontend `full_name` field
-      const mappedUser = { ...data.user, full_name: (data.user as any).name || data.user.full_name };
-      localStorage.setItem("auth_token", data.access_token);
+      // Query users table directly
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("email", email)
+        .eq("is_deleted", false)
+        .eq("is_active", true)
+        .single();
+
+      if (error || !data) throw new Error("Invalid email or password");
+
+      // Verify password with bcrypt
+      const passwordValid = await bcrypt.compare(password, data.password_hash);
+      if (!passwordValid) throw new Error("Invalid email or password");
+
+      // Map DB user to frontend User type
+      const mappedUser: User & { clinic_id: string } = {
+        id: data.id,
+        email: data.email,
+        full_name: data.name,
+        role: data.role as UserRole,
+        phone: data.phone || undefined,
+        is_active: data.is_active ?? true,
+        clinic_id: data.clinic_id,
+        created_at: data.created_at || "",
+        updated_at: data.updated_at || "",
+      };
+
+      // Generate a simple session token
+      const sessionToken = `sb_${data.id}_${Date.now()}`;
+
+      localStorage.setItem("auth_token", sessionToken);
       localStorage.setItem("auth_user", JSON.stringify(mappedUser));
-      setToken(data.access_token);
+      setToken(sessionToken);
       setUser(mappedUser);
     } catch (err: any) {
-      // If network error (backend unreachable), fall back to mock login
-      if (err.message === "Failed to fetch" || err.message === "Load failed") {
-        console.warn("[Auth] Backend unreachable, using mock login");
+      // If network/Supabase error, fall back to mock login
+      if (
+        err.message === "Failed to fetch" ||
+        err.message === "Load failed" ||
+        err.code === "PGRST116" // no rows found - could be empty DB
+      ) {
+        console.warn("[Auth] Supabase unreachable or empty, using mock login");
         const data = mockLogin(email, password);
         localStorage.setItem("auth_token", data.access_token);
         localStorage.setItem("auth_user", JSON.stringify(data.user));
@@ -80,8 +112,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (!context) {
-    // During HMR / React Fast Refresh, the provider may momentarily be absent.
-    // Return a safe fallback to prevent a full crash.
     return {
       user: null,
       token: null,

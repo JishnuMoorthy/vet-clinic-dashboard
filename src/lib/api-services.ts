@@ -122,6 +122,10 @@ export async function getDashboardStats(): Promise<DashboardData> {
         .limit(20),
     ]);
 
+    // Filter low stock items client-side since PostgREST can't compare column-to-column
+    const allInventory = (lowStockItems || []).map(mapInventoryItem);
+    const lowStock = allInventory.filter((i) => i.status === "low" || i.status === "out").slice(0, 10);
+
     return {
       todays_appointments: todayAppts ?? 0,
       pending_invoices: pendingInv ?? 0,
@@ -129,7 +133,7 @@ export async function getDashboardStats(): Promise<DashboardData> {
       total_owners: totalOwners ?? 0,
       upcoming_appointments: (recentAppts || []).map(mapAppointment),
       recent_invoices: (recentInvoices || []).map(mapInvoice),
-      low_stock_items: (lowStockItems || []).map(mapInventoryItem),
+      low_stock_items: lowStock,
     };
   } catch (err) {
     console.warn("[Dashboard] Supabase failed, using mock data", err);

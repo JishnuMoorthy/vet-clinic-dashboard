@@ -105,6 +105,7 @@ export default function ConsultationView() {
         if (draft.soap) setSoap(draft.soap);
         if (draft.followUp) setFollowUp(draft.followUp);
         if (draft.prescriptions) setPrescriptions(draft.prescriptions);
+        if (draft.vaccineEntries) setVaccineEntries(draft.vaccineEntries);
         toast({ title: "Draft restored", description: "Your previous draft has been restored." });
       } catch { /* ignore */ }
     }

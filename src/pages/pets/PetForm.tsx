@@ -53,6 +53,8 @@ export default function PetForm() {
     notes: "",
   });
 
+  const { clearDraft } = useFormDraft("draft_pet_form", form, setForm, !isEdit);
+
   useEffect(() => {
     if (existing) {
       setForm({

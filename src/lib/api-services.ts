@@ -1164,7 +1164,17 @@ export async function updateVaccination(id: string, data: any): Promise<any> {
   }
 }
 
-// ─── File Upload ──────────────────────────────────────────────────────────────
+export async function deleteVaccination(id: string): Promise<void> {
+  try {
+    const { error } = await supabase.from("vaccinations")
+      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
+    if (error) throw error;
+  } catch (err) {
+    console.error("[DeleteVaccination] Supabase failed", err);
+    throw err;
+  }
+}
+
 
 export async function uploadPetFile(file: File, petId: string): Promise<string> {
   const ext = file.name.split(".").pop() || "bin";

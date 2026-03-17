@@ -214,6 +214,19 @@ export default function ConsultationView() {
         respiratory_rate: vitals.respiratory_rate ? parseFloat(vitals.respiratory_rate) : undefined,
         body_condition_score: vitals.body_condition_score ? parseFloat(vitals.body_condition_score) : undefined,
       });
+      // Create vaccination records
+      for (const vax of vaccineEntries) {
+        if (vax.vaccine_name.trim()) {
+          await createVaccination({
+            pet_id: pet.id,
+            vaccine_name: vax.vaccine_name,
+            date_administered: new Date().toISOString().split("T")[0],
+            next_due_date: vax.next_due_date || null,
+            batch_number: vax.batch_number || null,
+            administered_by_id: user?.id || null,
+          });
+        }
+      }
       await updateAppointment(appointmentId!, { status: "completed" });
       logAction({ actor_id: user?.id || "unknown", action_type: "save_consultation", entity_type: "appointment", entity_id: appointmentId || "" });
       localStorage.removeItem(draftKey);

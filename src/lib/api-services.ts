@@ -91,6 +91,7 @@ export function mapInvoice(inv: any): Invoice {
     owner: inv.pet_owners ? mapOwner(inv.pet_owners) : inv.owner ? mapOwner(inv.owner) : undefined,
     line_items: inv.line_items || [],
     subtotal: inv.amount ?? inv.subtotal ?? 0,
+    discount: inv.discount ?? 0,
     total: inv.total_amount ?? inv.total ?? 0,
   };
 }

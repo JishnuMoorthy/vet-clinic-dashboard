@@ -41,6 +41,8 @@ export default function InventoryForm() {
     expiry_date: "",
   });
 
+  const { clearDraft } = useFormDraft("draft_inventory_form", form, setForm, !isEdit);
+
   useEffect(() => {
     if (existing) {
       setForm({

@@ -1,9 +1,10 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getInvoice, updateInvoice } from "@/lib/api-services";
+import { getInvoice, updateInvoice, deleteInvoice } from "@/lib/api-services";
 import { mockInvoices } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -14,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAction } from "@/lib/audit-log";
 import { useState } from "react";
-import { CreditCard, Printer, Copy, MessageCircle } from "lucide-react";
+import { CreditCard, Printer, Copy, MessageCircle, Trash2 } from "lucide-react";
 
 export default function InvoiceDetail() {
   const { id } = useParams();
@@ -24,6 +25,7 @@ export default function InvoiceDetail() {
   const queryClient = useQueryClient();
   const [showPay, setShowPay] = useState(false);
   const [payMethod, setPayMethod] = useState("UPI");
+  const [showDelete, setShowDelete] = useState(false);
 
   const { data: inv } = useQuery({
     queryKey: ["invoice", id],
@@ -39,6 +41,18 @@ export default function InvoiceDetail() {
       queryClient.invalidateQueries({ queryKey: ["invoice", id] });
       toast({ title: `Marked as paid via ${payMethod}` });
       setShowPay(false);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteInvoice(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({ title: "Invoice deleted" });
+      navigate("/billing");
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "Failed to delete invoice", variant: "destructive" });
     },
   });
 
@@ -76,6 +90,9 @@ export default function InvoiceDetail() {
             Send Reminder
           </Button>
         )}
+        <Button variant="destructive" size="sm" onClick={() => setShowDelete(true)}>
+          <Trash2 className="mr-2 h-3 w-3" /> Delete
+        </Button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -144,6 +161,15 @@ export default function InvoiceDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        title="Delete Invoice"
+        description={`Are you sure you want to delete invoice ${inv.invoice_number}? This action cannot be undone.`}
+        onConfirm={() => deleteMutation.mutate()}
+        destructive
+      />
     </div>
   );
 }

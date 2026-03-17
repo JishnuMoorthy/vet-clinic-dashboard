@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getInvoices, updateInvoice } from "@/lib/api-services";
+import { getInvoices, updateInvoice, deleteInvoice } from "@/lib/api-services";
 import { mockInvoices } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export default function InvoicesList() {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export default function InvoicesList() {
   const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
   const [filterPets, setFilterPets] = useState<string[]>([]);
   const [filterOwners, setFilterOwners] = useState<string[]>([]);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: invoicesRes } = useQuery({
     queryKey: ["invoices"],
@@ -38,6 +40,18 @@ export default function InvoicesList() {
     },
     onError: () => {
       toast({ title: "Failed to update status", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteInvoice(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({ title: "Invoice deleted" });
+      setDeleteId(null);
+    },
+    onError: () => {
+      toast({ title: "Failed to delete invoice", variant: "destructive" });
     },
   });
 
@@ -108,6 +122,7 @@ export default function InvoicesList() {
                 <TableHead>Amount</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -133,12 +148,26 @@ export default function InvoicesList() {
                       </SelectContent>
                     </Select>
                   </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDeleteId(inv.id)}>
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        title="Delete Invoice"
+        description="Are you sure you want to delete this invoice? This action cannot be undone."
+        onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
+        destructive
+      />
     </div>
   );
 }

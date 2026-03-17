@@ -1,8 +1,8 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getPets, getInvoices, getInventory, createInvoice } from "@/lib/api-services";
-import { mockPets, mockInvoices, mockServices, mockInventory } from "@/lib/mock-data";
+import { getPets, getInvoices, getInventory, getServices, createInvoice } from "@/lib/api-services";
+import { mockPets, mockInvoices } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,21 +32,20 @@ function ServicePicker({
   onChange,
   onSelect,
   hasError,
+  services,
+  medications,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSelect: (name: string, price: number) => void;
   hasError: boolean;
+  services: Array<{ id: string; name: string; price: number; is_active?: boolean }>;
+  medications: Array<{ id: string; name: string; unit_price?: number }>;
 }) {
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const medications = useMemo(
-    () => mockInventory.filter((i) => i.category === "Medications" && i.unit_price),
-    []
-  );
-
-  const activeServices = useMemo(() => mockServices.filter((s) => s.is_active), []);
+  const activeServices = useMemo(() => services.filter((s) => s.is_active !== false), [services]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -127,9 +126,16 @@ export default function InvoiceForm() {
 
   const { data: petsRes } = useQuery({ queryKey: ["pets"], queryFn: () => getPets() });
   const { data: invoicesRes } = useQuery({ queryKey: ["invoices"], queryFn: () => getInvoices() });
+  const { data: servicesData } = useQuery({ queryKey: ["services"], queryFn: () => getServices() });
+  const { data: inventoryRes } = useQuery({ queryKey: ["inventory"], queryFn: () => getInventory() });
 
   const allPets = petsRes?.data ?? mockPets;
   const allInvoices = invoicesRes?.data ?? mockInvoices;
+  const allServices = servicesData ?? [];
+  const allMedications = useMemo(
+    () => (inventoryRes?.data ?? []).filter((i: any) => i.category === "Medications" && i.unit_price),
+    [inventoryRes]
+  );
 
   const prefillPetId = searchParams.get("pet_id") || "";
   const prefillReason = searchParams.get("reason") || "";
@@ -299,6 +305,8 @@ export default function InvoiceForm() {
                       onChange={(v) => updateItem(i, "description", v)}
                       onSelect={(name, price) => handleServiceSelect(i, name, price)}
                       hasError={submitted && !li.description}
+                      services={allServices}
+                      medications={allMedications}
                     />
                   </div>
                   <div>

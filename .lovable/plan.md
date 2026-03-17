@@ -1,83 +1,94 @@
 
 
-# Implementation Plan: Full-Stack Backend Connectivity Fix
+# Services Catalog and Medication Billing Integration
 
-## Phase Analysis vs Current State
+## Overview
 
-| Phase | Document Request | Current State | Action Needed |
-|-------|-----------------|---------------|---------------|
-| **1A** | Add SOAP columns to medical_records | All columns already exist | None |
-| **1B** | Create vaccinations table | Table already exists | None |
-| **1C** | Create services table | Table already exists | None |
-| **1D** | Add line_items + discount to invoices | **Missing** — neither column exists | **Migration needed** |
-| **2** | Backend API routes (FastAPI) | N/A — app uses Supabase direct client | Skip entirely |
-| **3A** | Add 6 missing api-services functions | **Missing**: updateMedicalRecord, deleteMedicalRecord, deleteInvoice, createVaccination, updateVaccination, deleteVaccination | **Add all 6** |
-| **3B** | Fix createInvoice for line_items | Currently ignores line_items (no DB column) | **Fix after migration** |
-| **3C** | Fix mapInvoice for line_items + discount | mapInvoice reads `inv.line_items` (returns [] since column missing) and lacks `discount` | **Fix mapper** |
-| **4A** | Wire MedicalRecordForm to Supabase | Uses `mockPets`/`mockMedicalRecords`, handleSave is toast-only | **Full rewrite of data layer** |
-| **4B** | Fix InvoiceForm ServicePicker | Uses `mockInventory`/`mockServices` | **Replace with useQuery** |
-| **5** | Wire invoice delete | No delete capability exists | **Add to InvoiceDetail + InvoicesList** |
-| **6** | Audit & cleanup mock imports | Several pages still import mocks as primary sources | **Audit all files** |
+Create a Services Catalog that admins can manage (add/edit/delete services with prices), and integrate it into the invoice creation flow so staff can search and auto-populate line items. Also integrate inventory medications as billable items with automatic price population.
 
 ---
 
-## Implementation Steps
+## What Changes
 
-### Step 1: DB Migration — Add line_items + discount to invoices
-```sql
-ALTER TABLE invoices ADD COLUMN IF NOT EXISTS line_items JSONB DEFAULT '[]';
-ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount NUMERIC DEFAULT 0;
+### 1. New data types and mock data
+
+**`src/types/api.ts`** -- Add a `ServiceItem` interface:
+```
+interface ServiceItem {
+  id: string;
+  name: string;
+  category: "consultation" | "procedure" | "diagnostic" | "vaccination" | "grooming" | "surgery" | "medication" | "other";
+  price: number;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 ```
 
-### Step 2: Add 6 missing functions to `api-services.ts`
-- `updateMedicalRecord(id, data)` — update all SOAP/vitals columns, matching createMedicalRecord's field mapping
-- `deleteMedicalRecord(id)` — soft delete pattern (`is_deleted: true, deleted_at: now`)
-- `deleteInvoice(id)` — soft delete pattern
-- `createVaccination(data)` — insert with clinic_id, pet_id, vaccine_name, date_administered, next_due_date, batch_number, administered_by_id, notes
-- `updateVaccination(id, data)` — update fields
-- `deleteVaccination(id)` — soft delete pattern
+**`src/lib/mock-data.ts`** -- Add a mutable `mockServices` array with ~15 predefined services covering:
+- Consultations (General Consultation: 500, Follow-up: 300, Emergency: 1500)
+- Procedures (Dental Cleaning: 3000, Spay/Neuter: 5000, Wound Dressing: 800)
+- Diagnostics (Blood Panel: 3500, X-Ray: 2500, Ultrasound: 4000, Urinalysis: 1200)
+- Vaccinations (Rabies: 1500, DHPP: 1200, Deworming: 300)
+- Grooming (Full Grooming: 1200, Nail Trim: 200)
 
-### Step 3: Fix createInvoice + updateInvoice + mapInvoice
-- `createInvoice`: add `line_items` and `discount` to the insert payload
-- `updateInvoice`: add `line_items` and `discount` to the update payload
-- `mapInvoice`: read `discount` from DB row (currently only reads line_items which will now work)
+Also expose `addService` and `updateService` helper functions for runtime CRUD.
 
-### Step 4: Wire MedicalRecordForm to Supabase
-- Remove imports of `mockPets`, `mockMedicalRecords`
-- Add `useQuery` for pet data via `getPet(petId)`
-- Add `useQuery` for existing record via `getMedicalRecords({ pet_id: petId })` then find by recordId
-- Add `useMutation` wrapping `createMedicalRecord` / `updateMedicalRecord`
-- Add loading/error states
-- Wire handleSave to the mutation with query invalidation
+### 2. Services Catalog management page (admin only)
 
-### Step 5: Fix InvoiceForm ServicePicker
-- Add `useQuery({ queryKey: ['services'], queryFn: getServices })` and `useQuery({ queryKey: ['inventory'], queryFn: getInventory })` in InvoiceForm
-- Pass results to ServicePicker as props instead of reading `mockServices`/`mockInventory`
-- Remove unused mock imports
+**New: `src/pages/services/ServicesCatalog.tsx`** -- A table-based management page:
+- Search/filter bar at the top
+- Table columns: Service Name, Category, Price, Status, Actions (Edit/Delete)
+- "Add Service" button opens a dialog with fields: Name (req), Category (select), Price (req), Description (opt)
+- Inline edit via the same dialog pattern
+- Delete with ConfirmDialog
+- "Other" category option allows free-text for custom services
 
-### Step 6: Wire invoice delete
-- Add `deleteInvoice` import to InvoiceDetail and InvoicesList
-- Add delete button with ConfirmDialog in InvoiceDetail
-- Add delete action in InvoicesList table rows
-- Both use `useMutation` with `deleteInvoice`, invalidate `['invoices']` on success
+**`src/App.tsx`** -- Add route: `/services` under admin-protected routes
 
-### Step 7: Audit & cleanup remaining mock imports
-- Search all files for `mockPets`, `mockMedicalRecords`, `mockVaccinations`, `mockServices`, `mockInventory`, `mockInvoices`, `mockOwners` used as primary data sources
-- Replace with Supabase query fallbacks or remove entirely where queries already exist
-- Ensure error catch blocks log actual errors
+**`src/components/AppSidebar.tsx`** -- Add "Services" nav item under Administration section (between Billing and Inventory), using the `ClipboardList` icon
+
+### 3. Searchable service picker in Invoice Form
+
+**`src/pages/billing/InvoiceForm.tsx`** -- Replace the plain text `<Input>` for the "Service / Item" column with a searchable combobox (using `cmdk`):
+- When user starts typing, a dropdown shows matching services from `mockServices` + matching medications from `mockInventory` (filtered by category "Medications")
+- Results grouped under "Services" and "Medications" headings
+- Selecting a service auto-fills the description AND the unit price
+- User can still type free text for custom items (the "Other" option)
+- Price field remains editable after auto-fill (admin can override)
+- An "Other (custom)" option always appears at the bottom, keeping the current free-text behavior
+
+### 4. Medication integration in billing
+
+Medications from `mockInventory` (category "Medications") appear as a separate group in the service search dropdown in the invoice form. When selected:
+- Description auto-fills with the medication name
+- Price auto-fills from the inventory item's `unit_price`
+- Quantity defaults to 1 but is editable
+
+This means admins don't need to remember medication prices -- they search "Amoxicillin" and it populates automatically.
 
 ---
 
-## Files to Change
+## File Changes Summary
 
-| File | Action |
-|------|--------|
-| DB Migration | Add `line_items jsonb` + `discount numeric` to invoices |
-| `src/lib/api-services.ts` | Add 6 CRUD functions; fix createInvoice/updateInvoice/mapInvoice for line_items + discount |
-| `src/pages/medical-records/MedicalRecordForm.tsx` | Replace mock data with useQuery/useMutation, wire save |
-| `src/pages/billing/InvoiceForm.tsx` | Replace mock ServicePicker data with Supabase queries |
-| `src/pages/billing/InvoiceDetail.tsx` | Add delete button with confirmation |
-| `src/pages/billing/InvoicesList.tsx` | Add delete action per row |
+| File | Action | Description |
+|------|--------|-------------|
+| `src/types/api.ts` | Edit | Add `ServiceItem` interface |
+| `src/lib/mock-data.ts` | Edit | Add `mockServices` array with ~15 services + helper functions |
+| `src/pages/services/ServicesCatalog.tsx` | Create | Admin CRUD page for services catalog |
+| `src/pages/billing/InvoiceForm.tsx` | Edit | Replace line item description input with searchable combobox that searches services + medications |
+| `src/App.tsx` | Edit | Add `/services` route (admin-protected) |
+| `src/components/AppSidebar.tsx` | Edit | Add "Services" link in Administration nav |
 
-Phase 2 (FastAPI backend routes) is skipped entirely since this app communicates directly with Supabase via the JS client.
+---
+
+## Technical Notes
+
+- The service picker in `InvoiceForm` uses the existing `cmdk` package (already installed) wrapped in a `Popover` for each line item's description field
+- Searching combines `mockServices.filter(...)` and `mockInventory.filter(i => i.category === "Medications")` results into grouped dropdown sections
+- When a service/medication is selected, both `description` and `unit_price` fields update via the existing `updateItem()` function
+- The "Other (custom)" fallback ensures backward compatibility -- users can always type a custom description with a manual price
+- The services catalog page follows the same table + dialog pattern used in `InventoryList.tsx` and `StaffList.tsx`
+- Mock services are exported as a mutable array (`let`) with `addService`/`updateService` helpers, matching the pattern used for `mockOwners` and `mockPets`
 

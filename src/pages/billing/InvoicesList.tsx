@@ -23,6 +23,7 @@ export default function InvoicesList() {
   const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
   const [filterPets, setFilterPets] = useState<string[]>([]);
   const [filterOwners, setFilterOwners] = useState<string[]>([]);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: invoicesRes } = useQuery({
     queryKey: ["invoices"],
@@ -39,6 +40,18 @@ export default function InvoicesList() {
     },
     onError: () => {
       toast({ title: "Failed to update status", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteInvoice(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({ title: "Invoice deleted" });
+      setDeleteId(null);
+    },
+    onError: () => {
+      toast({ title: "Failed to delete invoice", variant: "destructive" });
     },
   });
 

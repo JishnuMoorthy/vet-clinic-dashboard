@@ -759,7 +759,7 @@ export async function updateInvoice(id: string, data: Partial<Invoice>): Promise
     if ((data as any).payment_method !== undefined) updateData.notes = (data as any).payment_method;
 
     const { data: row, error } = await supabase.from("invoices")
-      .update(updateData).eq("id", id).select().single();
+      .update(updateData as any).eq("id", id).select().single();
     if (error) throw error;
     return mapInvoice(row);
   } catch (err) {

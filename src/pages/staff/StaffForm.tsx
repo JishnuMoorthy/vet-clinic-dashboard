@@ -84,6 +84,7 @@ export default function StaffForm() {
         ? updateStaff(id!, { ...data, role: data.role as import("@/types/api").UserRole, specialties })
         : createStaff({ ...data, role: data.role as import("@/types/api").UserRole, specialties }),
     onSuccess: () => {
+      clearDraft();
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       if (isEdit) queryClient.invalidateQueries({ queryKey: ["staff-member", id] });
       setSubmitted(true);

@@ -58,6 +58,7 @@ export default function OwnerForm() {
     mutationFn: (data: typeof form) =>
       isEdit ? updateOwner(id!, data) : createOwner(data),
     onSuccess: () => {
+      clearDraft();
       queryClient.invalidateQueries({ queryKey: ["owners"] });
       if (isEdit) queryClient.invalidateQueries({ queryKey: ["owner", id] });
       toast({

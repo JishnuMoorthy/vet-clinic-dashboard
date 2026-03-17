@@ -122,6 +122,7 @@ export default function AppointmentForm() {
         ? updateAppointment(editId, data)
         : createAppointment(data),
     onSuccess: () => {
+      clearDraft();
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       setSubmitted(true);
       toast({

@@ -137,6 +137,7 @@ export default function MedicalRecordForm() {
       return createMedicalRecord(payload);
     },
     onSuccess: () => {
+      clearMedicalDraft();
       queryClient.invalidateQueries({ queryKey: ["medical-records", petId] });
       queryClient.invalidateQueries({ queryKey: ["medical-records"] });
       toast({

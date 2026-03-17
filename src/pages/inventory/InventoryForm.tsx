@@ -81,6 +81,7 @@ export default function InventoryForm() {
       return isEdit ? updateInventoryItem(id!, payload) : createInventoryItem(payload);
     },
     onSuccess: () => {
+      clearDraft();
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       if (isEdit) queryClient.invalidateQueries({ queryKey: ["inventory-item", id] });
       setSubmitted(true);

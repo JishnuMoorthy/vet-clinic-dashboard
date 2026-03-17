@@ -115,6 +115,7 @@ export default function PetForm() {
       return isEdit ? updatePet(id!, payload) : createPet(payload);
     },
     onSuccess: () => {
+      clearDraft();
       queryClient.invalidateQueries({ queryKey: ["pets"] });
       if (isEdit) queryClient.invalidateQueries({ queryKey: ["pet", id] });
       toast({

@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useFormDraft } from "@/hooks/useFormDraft";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPet, getMedicalRecords, createMedicalRecord, updateMedicalRecord } from "@/lib/api-services";
 import { useAuth } from "@/contexts/AuthContext";

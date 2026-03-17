@@ -80,6 +80,7 @@ export default function PetForm() {
   const [dobMonth, setDobMonth] = useState<Date>(new Date());
   const [showConfirm, setShowConfirm] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | undefined>(undefined);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
 
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));

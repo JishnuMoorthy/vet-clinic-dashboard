@@ -168,8 +168,7 @@ export default function InvoiceDetail() {
         title="Delete Invoice"
         description={`Are you sure you want to delete invoice ${inv.invoice_number}? This action cannot be undone.`}
         onConfirm={() => deleteMutation.mutate()}
-        confirmLabel="Delete"
-        variant="destructive"
+        destructive
       />
     </div>
   );

@@ -729,7 +729,7 @@ export async function createInvoice(data: Partial<Invoice>): Promise<Invoice> {
       due_date: data.due_date || null,
       issue_date: new Date().toISOString().split("T")[0],
       notes: (data as any).notes || null,
-    }).select().single();
+    } as any).select().single();
     if (error) throw error;
     return mapInvoice(row);
   } catch (err) {

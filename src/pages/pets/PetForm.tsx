@@ -94,11 +94,20 @@ export default function PetForm() {
     : owners;
 
   const mutation = useMutation({
-    mutationFn: (data: typeof form) => {
+    mutationFn: async (data: typeof form) => {
+      let photoUrl = photoPreview;
+      // Upload photo file to storage if a new file was selected
+      if (photoFile) {
+        try {
+          photoUrl = await uploadPetFile(photoFile, isEdit ? id! : `new-${Date.now()}`);
+        } catch (err) {
+          console.warn("Photo upload failed, continuing without photo", err);
+        }
+      }
       const payload = {
         ...data,
         weight: data.weight ? parseFloat(data.weight) : undefined,
-        photo_url: photoPreview,
+        photo_url: photoUrl,
       };
       return isEdit ? updatePet(id!, payload) : createPet(payload);
     },

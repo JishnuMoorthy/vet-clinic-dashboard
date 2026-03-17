@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, differenceInYears, differenceInMonths } from "date-fns";
-import { getAppointment, getMedicalRecords, getVaccinations, createMedicalRecord, updateAppointment } from "@/lib/api-services";
+import { getAppointment, getMedicalRecords, getVaccinations, createMedicalRecord, updateAppointment, createVaccination } from "@/lib/api-services";
 import type { MedicalRecord, Prescription } from "@/types/api";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageHeader } from "@/components/PageHeader";

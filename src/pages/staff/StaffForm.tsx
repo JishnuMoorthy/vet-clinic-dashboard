@@ -42,6 +42,8 @@ export default function StaffForm() {
     phone: "",
     role: "staff",
   });
+
+  const { clearDraft } = useFormDraft("draft_staff_form", form, setForm, !isEdit);
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
 

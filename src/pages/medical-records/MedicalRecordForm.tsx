@@ -41,6 +41,8 @@ export default function MedicalRecordForm() {
 
   const existing = recordId && records ? records.find((r) => r.id === recordId) : null;
 
+  const isNewRecord = !recordId;
+
   const [isDirty, setIsDirty] = useState(false);
   const [vitals, setVitals] = useState({
     weight_kg: existing?.weight_kg?.toString() || pet?.weight?.toString() || "",
@@ -65,6 +67,36 @@ export default function MedicalRecordForm() {
     next_appointment_recommendation: existing?.next_appointment_recommendation || "",
   });
   const [prescriptions, setPrescriptions] = useState<Prescription[]>(existing?.prescriptions || []);
+
+  // Draft for the combined form state (new records only)
+  const draftState = { vitals, soap, prescriptions };
+  const draftInitialized = useRef(false);
+
+  useEffect(() => {
+    if (!isNewRecord || draftInitialized.current) return;
+    try {
+      const saved = localStorage.getItem(`draft_medical_record_${petId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.vitals) setVitals(parsed.vitals);
+        if (parsed.soap) setSoap(parsed.soap);
+        if (parsed.prescriptions) setPrescriptions(parsed.prescriptions);
+      }
+    } catch {}
+    draftInitialized.current = true;
+  }, [isNewRecord, petId]);
+
+  useEffect(() => {
+    if (!isNewRecord || !draftInitialized.current) return;
+    const timer = setTimeout(() => {
+      try { localStorage.setItem(`draft_medical_record_${petId}`, JSON.stringify(draftState)); } catch {}
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [vitals, soap, prescriptions, isNewRecord, petId]); // eslint-disable-line
+
+  const clearMedicalDraft = () => {
+    try { localStorage.removeItem(`draft_medical_record_${petId}`); } catch {}
+  };
 
   // Re-populate form when existing record loads
   const [populatedRecordId, setPopulatedRecordId] = useState<string | null>(null);

@@ -89,6 +89,7 @@ export default function ConsultationView() {
     condition_note: string;
   }>({ status: "not_needed", urgency: "", reason: "", condition_note: "" });
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [vaccineEntries, setVaccineEntries] = useState<{ vaccine_name: string; batch_number: string; next_due_date: string }[]>([]);
 
   // Autosave draft
   const draftKey = `draft_consultation_${appointmentId}`;

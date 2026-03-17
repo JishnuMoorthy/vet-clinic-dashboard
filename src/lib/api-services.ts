@@ -1060,3 +1060,114 @@ export async function getVaccinations(params?: { pet_id?: string }): Promise<any
       : [...mockVaccinations];
   }
 }
+
+// ─── Update Medical Record ────────────────────────────────────────────────────
+
+export async function updateMedicalRecord(id: string, data: any): Promise<any> {
+  try {
+    const updateData: any = {};
+    const fields = [
+      "chief_complaint", "symptoms", "duration_onset", "appetite_behavior",
+      "prior_treatments", "physical_exam_findings", "diagnostic_results",
+      "primary_diagnosis", "differential_diagnoses", "severity",
+      "procedures_performed", "follow_up_instructions", "next_appointment_recommendation",
+    ];
+    fields.forEach((f) => { if (data[f] !== undefined) updateData[f] = data[f] || null; });
+    if (data.primary_diagnosis) updateData.diagnosis = data.primary_diagnosis;
+    if (data.procedures_performed) updateData.treatment = data.procedures_performed;
+    if (data.weight_kg !== undefined) updateData.weight_kg = data.weight_kg ? Number(data.weight_kg) : null;
+    if (data.temperature_f !== undefined) updateData.temperature_f = data.temperature_f ? Number(data.temperature_f) : null;
+    if (data.heart_rate_bpm !== undefined) updateData.heart_rate_bpm = data.heart_rate_bpm ? Number(data.heart_rate_bpm) : null;
+    if (data.respiratory_rate !== undefined) updateData.respiratory_rate = data.respiratory_rate ? Number(data.respiratory_rate) : null;
+    if (data.body_condition_score !== undefined) updateData.body_condition_score = data.body_condition_score ? Number(data.body_condition_score) : null;
+    if (data.prescriptions !== undefined) updateData.prescriptions_json = data.prescriptions;
+    if (data.follow_up !== undefined) updateData.follow_up_json = data.follow_up;
+
+    const { data: row, error } = await supabase.from("medical_records")
+      .update(updateData).eq("id", id).select().single();
+    if (error) throw error;
+    return mapMedicalRecord(row);
+  } catch (err) {
+    console.error("[UpdateMedicalRecord] Supabase failed", err);
+    throw err;
+  }
+}
+
+export async function deleteMedicalRecord(id: string): Promise<void> {
+  try {
+    const { error } = await supabase.from("medical_records")
+      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
+    if (error) throw error;
+  } catch (err) {
+    console.error("[DeleteMedicalRecord] Supabase failed", err);
+    throw err;
+  }
+}
+
+// ─── Delete Invoice ───────────────────────────────────────────────────────────
+
+export async function deleteInvoice(id: string): Promise<void> {
+  try {
+    const { error } = await supabase.from("invoices")
+      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
+    if (error) throw error;
+  } catch (err) {
+    console.error("[DeleteInvoice] Supabase failed", err);
+    throw err;
+  }
+}
+
+// ─── Vaccination CRUD ─────────────────────────────────────────────────────────
+
+export async function createVaccination(data: any): Promise<any> {
+  try {
+    const clinicId = getClinicId();
+    if (!clinicId) throw new Error("No clinic");
+    const { data: row, error } = await supabase.from("vaccinations").insert({
+      clinic_id: clinicId,
+      pet_id: data.pet_id || "",
+      vaccine_name: data.vaccine_name || "",
+      date_administered: data.date_administered || new Date().toISOString().split("T")[0],
+      next_due_date: data.next_due_date || null,
+      batch_number: data.batch_number || null,
+      administered_by_id: data.administered_by_id || null,
+      notes: data.notes || null,
+    }).select().single();
+    if (error) throw error;
+    return row;
+  } catch (err) {
+    console.error("[CreateVaccination] Supabase failed", err);
+    throw err;
+  }
+}
+
+export async function updateVaccination(id: string, data: any): Promise<any> {
+  try {
+    const updateData: any = {};
+    if (data.vaccine_name !== undefined) updateData.vaccine_name = data.vaccine_name;
+    if (data.date_administered !== undefined) updateData.date_administered = data.date_administered;
+    if (data.next_due_date !== undefined) updateData.next_due_date = data.next_due_date;
+    if (data.batch_number !== undefined) updateData.batch_number = data.batch_number;
+    if (data.administered_by_id !== undefined) updateData.administered_by_id = data.administered_by_id;
+    if (data.notes !== undefined) updateData.notes = data.notes;
+
+    const { data: row, error } = await supabase.from("vaccinations")
+      .update(updateData).eq("id", id).select().single();
+    if (error) throw error;
+    return row;
+  } catch (err) {
+    console.error("[UpdateVaccination] Supabase failed", err);
+    throw err;
+  }
+}
+
+export async function deleteVaccination(id: string): Promise<void> {
+  try {
+    const { error } = await supabase.from("vaccinations")
+      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
+    if (error) throw error;
+  } catch (err) {
+    console.error("[DeleteVaccination] Supabase failed", err);
+    throw err;
+  }
+}

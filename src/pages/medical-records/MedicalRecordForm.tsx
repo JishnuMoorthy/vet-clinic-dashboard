@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { mockPets, mockMedicalRecords } from "@/lib/mock-data";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getPet, getMedicalRecords, createMedicalRecord, updateMedicalRecord } from "@/lib/api-services";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Prescription, MedicalRecord } from "@/types/api";
 import { PageHeader } from "@/components/PageHeader";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -15,15 +17,28 @@ import { Separator } from "@/components/ui/separator";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Save, Plus, Trash2, Activity, Stethoscope, Weight, Thermometer, Heart, Wind } from "lucide-react";
+import { Save, Plus, Trash2, Activity, Stethoscope, Weight, Thermometer, Heart, Wind, Loader2 } from "lucide-react";
 
 export default function MedicalRecordForm() {
   const { petId, recordId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const pet = mockPets.find((p) => p.id === petId);
-  const existing = recordId ? mockMedicalRecords.find((r) => r.id === recordId) : null;
+  const { data: pet, isLoading: petLoading } = useQuery({
+    queryKey: ["pet", petId],
+    queryFn: () => getPet(petId!),
+    enabled: !!petId,
+  });
+
+  const { data: records, isLoading: recordsLoading } = useQuery({
+    queryKey: ["medical-records", petId],
+    queryFn: () => getMedicalRecords({ pet_id: petId! }),
+    enabled: !!petId && !!recordId,
+  });
+
+  const existing = recordId && records ? records.find((r) => r.id === recordId) : null;
 
   const [isDirty, setIsDirty] = useState(false);
   const [vitals, setVitals] = useState({
@@ -50,7 +65,71 @@ export default function MedicalRecordForm() {
   });
   const [prescriptions, setPrescriptions] = useState<Prescription[]>(existing?.prescriptions || []);
 
+  // Re-populate form when existing record loads
+  const [populatedRecordId, setPopulatedRecordId] = useState<string | null>(null);
+  if (existing && recordId && populatedRecordId !== recordId) {
+    setPopulatedRecordId(recordId);
+    setVitals({
+      weight_kg: existing.weight_kg?.toString() || "",
+      temperature_f: existing.temperature_f?.toString() || "",
+      heart_rate_bpm: existing.heart_rate_bpm?.toString() || "",
+      respiratory_rate: existing.respiratory_rate?.toString() || "",
+      body_condition_score: existing.body_condition_score?.toString() || "",
+    });
+    setSoap({
+      chief_complaint: existing.chief_complaint || "",
+      symptoms: existing.symptoms || "",
+      duration_onset: existing.duration_onset || "",
+      appetite_behavior: existing.appetite_behavior || "",
+      prior_treatments: existing.prior_treatments || "",
+      physical_exam_findings: existing.physical_exam_findings || "",
+      diagnostic_results: existing.diagnostic_results || "",
+      primary_diagnosis: existing.primary_diagnosis || "",
+      differential_diagnoses: existing.differential_diagnoses || "",
+      severity: (existing.severity || "mild") as MedicalRecord["severity"],
+      procedures_performed: existing.procedures_performed || "",
+      follow_up_instructions: existing.follow_up_instructions || "",
+      next_appointment_recommendation: existing.next_appointment_recommendation || "",
+    });
+    setPrescriptions(existing.prescriptions || []);
+  }
+
   useUnsavedChanges(isDirty);
+
+  const saveMutation = useMutation({
+    mutationFn: (payload: any) => {
+      if (existing && recordId) {
+        return updateMedicalRecord(recordId, payload);
+      }
+      return createMedicalRecord(payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["medical-records", petId] });
+      queryClient.invalidateQueries({ queryKey: ["medical-records"] });
+      toast({
+        title: existing ? "Record updated" : "Record created",
+        description: `Medical record for ${pet?.name} has been saved.`,
+      });
+      setIsDirty(false);
+      navigate(`/pets/${petId}`);
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to save record",
+        description: err.message || "An error occurred while saving.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  if (petLoading || recordsLoading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-muted-foreground">Loading...</span>
+      </div>
+    );
+  }
 
   if (!pet) return <div className="p-6">Pet not found.</div>;
 
@@ -65,16 +144,25 @@ export default function MedicalRecordForm() {
       toast({ title: "Missing required fields", description: "Chief complaint and primary diagnosis are required.", variant: "destructive" });
       return;
     }
-    toast({ title: existing ? "Record updated" : "Record created", description: `Medical record for ${pet.name} has been saved.` });
-    setIsDirty(false);
-    navigate(`/pets/${petId}`);
+    const payload = {
+      pet_id: petId,
+      vet_id: user?.id || "",
+      visit_date: new Date().toISOString().split("T")[0],
+      ...soap,
+      ...vitals,
+      prescriptions,
+    };
+    saveMutation.mutate(payload);
   };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader title={`${existing ? "Edit" : "New"} Medical Record — ${pet.name}`} backTo={`/pets/${petId}`} />
-        <Button onClick={handleSave} className="shrink-0"><Save className="mr-2 h-4 w-4" /> Save Record</Button>
+        <Button onClick={handleSave} disabled={saveMutation.isPending} className="shrink-0">
+          {saveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          {saveMutation.isPending ? "Saving..." : "Save Record"}
+        </Button>
       </div>
 
       <div><Label className="text-xs font-medium">Chief Complaint *</Label><Input value={soap.chief_complaint} onChange={(e) => updateSoap("chief_complaint", e.target.value)} placeholder="Reason for visit…" className="mt-1" /></div>

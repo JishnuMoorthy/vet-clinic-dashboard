@@ -373,7 +373,8 @@ export async function createPet(data: Partial<Pet>): Promise<Pet> {
       microchip_id: data.microchip_id || null,
       health_status: data.status || "healthy",
       owner_id: data.owner_id || "",
-    }).select().single();
+      photo_url: (data as any).photo_url || null,
+    } as any).select().single();
     if (error) throw error;
     return mapPet(row);
   } catch (err) {

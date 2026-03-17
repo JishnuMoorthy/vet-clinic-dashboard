@@ -202,11 +202,13 @@ export type Database = {
           clinic_id: string
           created_at: string | null
           deleted_at: string | null
+          discount: number | null
           due_date: string | null
           id: string
           invoice_number: string
           is_deleted: boolean | null
           issue_date: string
+          line_items: Json | null
           notes: string | null
           owner_id: string
           pet_id: string
@@ -221,11 +223,13 @@ export type Database = {
           clinic_id: string
           created_at?: string | null
           deleted_at?: string | null
+          discount?: number | null
           due_date?: string | null
           id?: string
           invoice_number: string
           is_deleted?: boolean | null
           issue_date: string
+          line_items?: Json | null
           notes?: string | null
           owner_id: string
           pet_id: string
@@ -240,11 +244,13 @@ export type Database = {
           clinic_id?: string
           created_at?: string | null
           deleted_at?: string | null
+          discount?: number | null
           due_date?: string | null
           id?: string
           invoice_number?: string
           is_deleted?: boolean | null
           issue_date?: string
+          line_items?: Json | null
           notes?: string | null
           owner_id?: string
           pet_id?: string

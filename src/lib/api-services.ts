@@ -753,7 +753,10 @@ export async function updateInvoice(id: string, data: Partial<Invoice>): Promise
     if (data.total !== undefined) updateData.total_amount = data.total;
     if (data.subtotal !== undefined) updateData.amount = data.subtotal;
     if (data.due_date !== undefined) updateData.due_date = data.due_date;
+    if (data.discount !== undefined) updateData.discount = data.discount;
+    if (data.line_items !== undefined) updateData.line_items = data.line_items;
     if ((data as any).notes !== undefined) updateData.notes = (data as any).notes;
+    if ((data as any).payment_method !== undefined) updateData.notes = (data as any).payment_method;
 
     const { data: row, error } = await supabase.from("invoices")
       .update(updateData).eq("id", id).select().single();

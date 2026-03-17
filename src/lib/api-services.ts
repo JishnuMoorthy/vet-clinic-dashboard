@@ -9,6 +9,7 @@ import type {
   User,
   UserRole,
   MedicalRecord,
+  PetDocument,
 } from "@/types/api";
 import { supabase, getClinicId } from "@/lib/supabase";
 import bcrypt from "bcryptjs";

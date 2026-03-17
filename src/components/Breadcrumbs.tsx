@@ -14,6 +14,22 @@ const routeLabels: Record<string, string> = {
   new: "Add New",
   edit: "Edit",
   list: "List View",
+  records: "Medical Records",
+  consultations: "Today's Patients",
+  consultation: "Consultation",
+  services: "Services",
+};
+
+// Routes that don't exist — redirect to a parent that does
+const routeRedirects: Record<string, (segments: string[]) => string | null> = {
+  records: (segments) => {
+    // /pets/:id/records → /pets/:id
+    const petsIdx = segments.indexOf("pets");
+    if (petsIdx >= 0 && petsIdx + 1 < segments.length) {
+      return `/pets/${segments[petsIdx + 1]}`;
+    }
+    return null;
+  },
 };
 
 function humanize(segment: string): string {

@@ -401,6 +401,7 @@ export async function updatePet(id: string, data: Partial<Pet>): Promise<Pet> {
     if (data.microchip_id !== undefined) updateData.microchip_id = data.microchip_id;
     if (data.status !== undefined) updateData.health_status = data.status;
     if (data.owner_id !== undefined) updateData.owner_id = data.owner_id;
+    if ((data as any).photo_url !== undefined) updateData.photo_url = (data as any).photo_url;
 
     const { data: row, error } = await supabase.from("pets")
       .update(updateData).eq("id", id).select().single();

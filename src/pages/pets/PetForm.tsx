@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { useFormDraft } from "@/hooks/useFormDraft";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPet, createPet, updatePet, getOwners, uploadPetFile } from "@/lib/api-services";
 import { mockPets, mockOwners } from "@/lib/mock-data";
@@ -51,6 +52,8 @@ export default function PetForm() {
     owner_id: "",
     notes: "",
   });
+
+  const { clearDraft } = useFormDraft("draft_pet_form", form, setForm, !isEdit);
 
   useEffect(() => {
     if (existing) {
@@ -112,6 +115,7 @@ export default function PetForm() {
       return isEdit ? updatePet(id!, payload) : createPet(payload);
     },
     onSuccess: () => {
+      clearDraft();
       queryClient.invalidateQueries({ queryKey: ["pets"] });
       if (isEdit) queryClient.invalidateQueries({ queryKey: ["pet", id] });
       toast({

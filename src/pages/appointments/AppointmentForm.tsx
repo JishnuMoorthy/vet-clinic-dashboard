@@ -1,4 +1,5 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useFormDraft } from "@/hooks/useFormDraft";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPets, getStaff, getAppointments, createAppointment, updateAppointment } from "@/lib/api-services";
@@ -48,6 +49,8 @@ export default function AppointmentForm() {
     reason: prefillReason,
     notes: prefillNotes,
   });
+
+  const { clearDraft } = useFormDraft("draft_appointment_form", form, setForm, !isEdit);
 
   const [petSearch, setPetSearch] = useState("");
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -119,6 +122,7 @@ export default function AppointmentForm() {
         ? updateAppointment(editId, data)
         : createAppointment(data),
     onSuccess: () => {
+      clearDraft();
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       setSubmitted(true);
       toast({

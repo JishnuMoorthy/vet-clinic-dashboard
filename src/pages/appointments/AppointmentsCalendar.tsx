@@ -959,7 +959,7 @@ function AppointmentDetail({
               >
                 <Stethoscope className="mr-1 h-3 w-3" /> Start Consultation
               </Button>
-              <Button variant="outline" size="icon" onClick={() => navigate(`/appointments/${apt.id}/edit`)}>
+              <Button variant="outline" size="icon" onClick={() => navigate(`/appointments/new?edit=${apt.id}`)}>
                 <Pencil className="h-4 w-4" />
               </Button>
               <Button variant="outline" onClick={() => setShowCancelConfirm(true)}>

@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useFormDraft } from "@/hooks/useFormDraft";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getStaffMember, createStaff, updateStaff } from "@/lib/api-services";
 import { mockUsers } from "@/lib/mock-data";
@@ -41,6 +42,8 @@ export default function StaffForm() {
     phone: "",
     role: "staff",
   });
+
+  const { clearDraft } = useFormDraft("draft_staff_form", form, setForm, !isEdit);
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
 
@@ -81,6 +84,7 @@ export default function StaffForm() {
         ? updateStaff(id!, { ...data, role: data.role as import("@/types/api").UserRole, specialties })
         : createStaff({ ...data, role: data.role as import("@/types/api").UserRole, specialties }),
     onSuccess: () => {
+      clearDraft();
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       if (isEdit) queryClient.invalidateQueries({ queryKey: ["staff-member", id] });
       setSubmitted(true);

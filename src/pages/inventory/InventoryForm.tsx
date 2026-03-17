@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useFormDraft } from "@/hooks/useFormDraft";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getInventoryItem, createInventoryItem, updateInventoryItem } from "@/lib/api-services";
 import { mockInventory } from "@/lib/mock-data";
@@ -40,6 +41,8 @@ export default function InventoryForm() {
     expiry_date: "",
   });
 
+  const { clearDraft } = useFormDraft("draft_inventory_form", form, setForm, !isEdit);
+
   useEffect(() => {
     if (existing) {
       setForm({
@@ -78,6 +81,7 @@ export default function InventoryForm() {
       return isEdit ? updateInventoryItem(id!, payload) : createInventoryItem(payload);
     },
     onSuccess: () => {
+      clearDraft();
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       if (isEdit) queryClient.invalidateQueries({ queryKey: ["inventory-item", id] });
       setSubmitted(true);

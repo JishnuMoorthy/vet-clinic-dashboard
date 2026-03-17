@@ -114,10 +114,10 @@ export default function ConsultationView() {
   useEffect(() => {
     if (!isRestored.current) return;
     const t = setTimeout(() => {
-      localStorage.setItem(draftKey, JSON.stringify({ vitals, soap, followUp, prescriptions }));
+      localStorage.setItem(draftKey, JSON.stringify({ vitals, soap, followUp, prescriptions, vaccineEntries }));
     }, 1000);
     return () => clearTimeout(t);
-  }, [vitals, soap, followUp, prescriptions, draftKey]);
+  }, [vitals, soap, followUp, prescriptions, vaccineEntries, draftKey]);
 
   useUnsavedChanges(isDirty);
 

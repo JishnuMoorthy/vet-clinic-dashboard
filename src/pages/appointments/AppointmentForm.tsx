@@ -50,6 +50,8 @@ export default function AppointmentForm() {
     notes: prefillNotes,
   });
 
+  const { clearDraft } = useFormDraft("draft_appointment_form", form, setForm, !isEdit);
+
   const [petSearch, setPetSearch] = useState("");
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);

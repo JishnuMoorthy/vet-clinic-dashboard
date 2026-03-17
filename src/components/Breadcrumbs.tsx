@@ -43,12 +43,19 @@ export function Breadcrumbs() {
   if (segments.length <= 1) return null;
 
   const crumbs = segments.map((seg, i) => {
-    const path = "/" + segments.slice(0, i + 1).join("/");
+    let path = "/" + segments.slice(0, i + 1).join("/");
     const isLast = i === segments.length - 1;
     // If segment looks like an ID (uuid or mock id), show "Details"
     const label = /^[a-f0-9-]{8,}$/.test(seg) || seg.startsWith("mock-") || seg.startsWith("pet-") || seg.startsWith("owner-") || seg.startsWith("inv-") || seg.startsWith("item-") || seg.startsWith("apt-")
       ? "Details"
       : humanize(seg);
+
+    // Redirect non-existent intermediate routes
+    const redirect = routeRedirects[seg];
+    if (redirect && !isLast) {
+      const redirectPath = redirect(segments);
+      if (redirectPath) path = redirectPath;
+    }
 
     return { path, label, isLast };
   });

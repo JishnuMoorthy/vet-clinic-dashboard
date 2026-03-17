@@ -9,6 +9,7 @@ import type {
   User,
   UserRole,
   MedicalRecord,
+  PetDocument,
 } from "@/types/api";
 import { supabase, getClinicId } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
@@ -372,7 +373,8 @@ export async function createPet(data: Partial<Pet>): Promise<Pet> {
       microchip_id: data.microchip_id || null,
       health_status: data.status || "healthy",
       owner_id: data.owner_id || "",
-    }).select().single();
+      photo_url: (data as any).photo_url || null,
+    } as any).select().single();
     if (error) throw error;
     return mapPet(row);
   } catch (err) {
@@ -399,6 +401,7 @@ export async function updatePet(id: string, data: Partial<Pet>): Promise<Pet> {
     if (data.microchip_id !== undefined) updateData.microchip_id = data.microchip_id;
     if (data.status !== undefined) updateData.health_status = data.status;
     if (data.owner_id !== undefined) updateData.owner_id = data.owner_id;
+    if ((data as any).photo_url !== undefined) updateData.photo_url = (data as any).photo_url;
 
     const { data: row, error } = await supabase.from("pets")
       .update(updateData).eq("id", id).select().single();
@@ -1170,4 +1173,58 @@ export async function deleteVaccination(id: string): Promise<void> {
     console.error("[DeleteVaccination] Supabase failed", err);
     throw err;
   }
+}
+
+
+export async function uploadPetFile(file: File, petId: string): Promise<string> {
+  const ext = file.name.split(".").pop() || "bin";
+  const path = `${petId}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from("pet-files").upload(path, file);
+  if (error) throw error;
+  const { data } = supabase.storage.from("pet-files").getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// ─── Pet Documents ────────────────────────────────────────────────────────────
+
+export async function getPetDocuments(petId: string): Promise<PetDocument[]> {
+  try {
+    const clinicId = getClinicId();
+    if (!clinicId) throw new Error("No clinic");
+    const { data, error } = await supabase.from("pet_documents")
+      .select("*")
+      .eq("clinic_id", clinicId)
+      .eq("pet_id", petId)
+      .eq("is_deleted", false)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data || []) as unknown as PetDocument[];
+  } catch (err) {
+    console.warn("[PetDocuments] Supabase failed", err);
+    return [];
+  }
+}
+
+export async function createPetDocument(data: Partial<PetDocument>): Promise<PetDocument> {
+  const clinicId = getClinicId();
+  if (!clinicId) throw new Error("No clinic");
+  const { data: row, error } = await supabase.from("pet_documents").insert({
+    clinic_id: clinicId,
+    pet_id: data.pet_id || "",
+    file_name: data.file_name || "",
+    file_url: data.file_url || "",
+    file_type: data.file_type || null,
+    file_size_bytes: data.file_size_bytes || null,
+    category: data.category || "other",
+    notes: data.notes || null,
+    uploaded_by_id: data.uploaded_by_id || null,
+  } as any).select().single();
+  if (error) throw error;
+  return row as unknown as PetDocument;
+}
+
+export async function deletePetDocument(id: string): Promise<void> {
+  const { error } = await supabase.from("pet_documents")
+    .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any).eq("id", id);
+  if (error) throw error;
 }

@@ -600,6 +600,79 @@ export type Database = {
           },
         ]
       }
+      pet_documents: {
+        Row: {
+          category: string
+          clinic_id: string
+          created_at: string | null
+          deleted_at: string | null
+          file_name: string
+          file_size_bytes: number | null
+          file_type: string | null
+          file_url: string
+          id: string
+          is_deleted: boolean | null
+          notes: string | null
+          pet_id: string
+          updated_at: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          category?: string
+          clinic_id: string
+          created_at?: string | null
+          deleted_at?: string | null
+          file_name: string
+          file_size_bytes?: number | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+          is_deleted?: boolean | null
+          notes?: string | null
+          pet_id: string
+          updated_at?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          category?: string
+          clinic_id?: string
+          created_at?: string | null
+          deleted_at?: string | null
+          file_name?: string
+          file_size_bytes?: number | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+          is_deleted?: boolean | null
+          notes?: string | null
+          pet_id?: string
+          updated_at?: string | null
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pet_documents_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pet_documents_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pet_documents_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pet_owners: {
         Row: {
           address: string | null
@@ -673,6 +746,7 @@ export type Database = {
           microchip_id: string | null
           name: string
           owner_id: string
+          photo_url: string | null
           species: string
           updated_at: string | null
           weight_kg: number | null
@@ -693,6 +767,7 @@ export type Database = {
           microchip_id?: string | null
           name: string
           owner_id: string
+          photo_url?: string | null
           species: string
           updated_at?: string | null
           weight_kg?: number | null
@@ -713,6 +788,7 @@ export type Database = {
           microchip_id?: string | null
           name?: string
           owner_id?: string
+          photo_url?: string | null
           species?: string
           updated_at?: string | null
           weight_kg?: number | null

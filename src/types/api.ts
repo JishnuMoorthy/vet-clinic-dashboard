@@ -189,6 +189,22 @@ export interface ServiceItem {
   updated_at: string;
 }
 
+export interface PetDocument {
+  id: string;
+  clinic_id: string;
+  pet_id: string;
+  file_name: string;
+  file_url: string;
+  file_type?: string;
+  file_size_bytes?: number;
+  category: "lab_result" | "certificate" | "previous_record" | "imaging" | "other";
+  notes?: string;
+  uploaded_by_id?: string;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;

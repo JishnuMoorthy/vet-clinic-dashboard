@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, differenceInYears, differenceInMonths } from "date-fns";
-import { getAppointment, getMedicalRecords, getVaccinations, createMedicalRecord, updateAppointment } from "@/lib/api-services";
+import { getAppointment, getMedicalRecords, getVaccinations, createMedicalRecord, updateAppointment, createVaccination } from "@/lib/api-services";
 import type { MedicalRecord, Prescription } from "@/types/api";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageHeader } from "@/components/PageHeader";
@@ -89,6 +89,7 @@ export default function ConsultationView() {
     condition_note: string;
   }>({ status: "not_needed", urgency: "", reason: "", condition_note: "" });
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [vaccineEntries, setVaccineEntries] = useState<{ vaccine_name: string; batch_number: string; next_due_date: string }[]>([]);
 
   // Autosave draft
   const draftKey = `draft_consultation_${appointmentId}`;
@@ -104,6 +105,7 @@ export default function ConsultationView() {
         if (draft.soap) setSoap(draft.soap);
         if (draft.followUp) setFollowUp(draft.followUp);
         if (draft.prescriptions) setPrescriptions(draft.prescriptions);
+        if (draft.vaccineEntries) setVaccineEntries(draft.vaccineEntries);
         toast({ title: "Draft restored", description: "Your previous draft has been restored." });
       } catch { /* ignore */ }
     }
@@ -113,10 +115,10 @@ export default function ConsultationView() {
   useEffect(() => {
     if (!isRestored.current) return;
     const t = setTimeout(() => {
-      localStorage.setItem(draftKey, JSON.stringify({ vitals, soap, followUp, prescriptions }));
+      localStorage.setItem(draftKey, JSON.stringify({ vitals, soap, followUp, prescriptions, vaccineEntries }));
     }, 1000);
     return () => clearTimeout(t);
-  }, [vitals, soap, followUp, prescriptions, draftKey]);
+  }, [vitals, soap, followUp, prescriptions, vaccineEntries, draftKey]);
 
   useUnsavedChanges(isDirty);
 
@@ -213,6 +215,19 @@ export default function ConsultationView() {
         respiratory_rate: vitals.respiratory_rate ? parseFloat(vitals.respiratory_rate) : undefined,
         body_condition_score: vitals.body_condition_score ? parseFloat(vitals.body_condition_score) : undefined,
       });
+      // Create vaccination records
+      for (const vax of vaccineEntries) {
+        if (vax.vaccine_name.trim()) {
+          await createVaccination({
+            pet_id: pet.id,
+            vaccine_name: vax.vaccine_name,
+            date_administered: new Date().toISOString().split("T")[0],
+            next_due_date: vax.next_due_date || null,
+            batch_number: vax.batch_number || null,
+            administered_by_id: user?.id || null,
+          });
+        }
+      }
       await updateAppointment(appointmentId!, { status: "completed" });
       logAction({ actor_id: user?.id || "unknown", action_type: "save_consultation", entity_type: "appointment", entity_id: appointmentId || "" });
       localStorage.removeItem(draftKey);
@@ -388,6 +403,26 @@ export default function ConsultationView() {
                     ))}
                   </div>
                 </div>
+
+                {/* Vaccinations Administered */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-xs font-medium flex items-center gap-1"><Syringe className="h-3 w-3" /> Vaccinations Administered</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={() => { setVaccineEntries((prev) => [...prev, { vaccine_name: "", batch_number: "", next_due_date: "" }]); setIsDirty(true); }} className="h-7 text-xs"><Plus className="mr-1 h-3 w-3" /> Add Vaccine</Button>
+                  </div>
+                  {vaccineEntries.length === 0 && <p className="text-xs text-muted-foreground">No vaccinations given during this visit.</p>}
+                  <div className="space-y-2">
+                    {vaccineEntries.map((vax, i) => (
+                      <div key={i} className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
+                        <div><Label className="text-[10px]">Vaccine Name</Label><Input value={vax.vaccine_name} onChange={(e) => { const v = [...vaccineEntries]; v[i].vaccine_name = e.target.value; setVaccineEntries(v); setIsDirty(true); }} placeholder="e.g., Rabies" className="h-8 text-xs" /></div>
+                        <div><Label className="text-[10px]">Batch #</Label><Input value={vax.batch_number} onChange={(e) => { const v = [...vaccineEntries]; v[i].batch_number = e.target.value; setVaccineEntries(v); setIsDirty(true); }} className="h-8 text-xs w-24" /></div>
+                        <div><Label className="text-[10px]">Next Due</Label><Input type="date" value={vax.next_due_date} onChange={(e) => { const v = [...vaccineEntries]; v[i].next_due_date = e.target.value; setVaccineEntries(v); setIsDirty(true); }} className="h-8 text-xs w-32" /></div>
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setVaccineEntries((prev) => prev.filter((_, j) => j !== i)); setIsDirty(true); }}><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div><Label className="text-xs">Procedures Performed</Label><Textarea value={soap.procedures_performed} onChange={(e) => updateSoap("procedures_performed", e.target.value)} className="mt-1" rows={2} /></div>
                 <div><Label className="text-xs">Follow-up Instructions</Label><Textarea value={soap.follow_up_instructions} onChange={(e) => updateSoap("follow_up_instructions", e.target.value)} className="mt-1" rows={2} /></div>
 

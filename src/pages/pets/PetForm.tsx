@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getPet, createPet, updatePet, getOwners } from "@/lib/api-services";
+import { getPet, createPet, updatePet, getOwners, uploadPetFile } from "@/lib/api-services";
 import { mockPets, mockOwners } from "@/lib/mock-data";
 import { InlineOwnerModal } from "@/components/InlineOwnerModal";
 import { PageHeader } from "@/components/PageHeader";
@@ -80,6 +80,7 @@ export default function PetForm() {
   const [dobMonth, setDobMonth] = useState<Date>(new Date());
   const [showConfirm, setShowConfirm] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | undefined>(undefined);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
 
   const markTouched = (key: string) => setTouched((prev) => ({ ...prev, [key]: true }));
   const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -93,11 +94,20 @@ export default function PetForm() {
     : owners;
 
   const mutation = useMutation({
-    mutationFn: (data: typeof form) => {
+    mutationFn: async (data: typeof form) => {
+      let photoUrl = photoPreview;
+      // Upload photo file to storage if a new file was selected
+      if (photoFile) {
+        try {
+          photoUrl = await uploadPetFile(photoFile, isEdit ? id! : `new-${Date.now()}`);
+        } catch (err) {
+          console.warn("Photo upload failed, continuing without photo", err);
+        }
+      }
       const payload = {
         ...data,
         weight: data.weight ? parseFloat(data.weight) : undefined,
-        photo_url: photoPreview,
+        photo_url: photoUrl,
       };
       return isEdit ? updatePet(id!, payload) : createPet(payload);
     },
@@ -137,6 +147,7 @@ export default function PetForm() {
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setPhotoFile(file);
       const reader = new FileReader();
       reader.onloadend = () => setPhotoPreview(reader.result as string);
       reader.readAsDataURL(file);

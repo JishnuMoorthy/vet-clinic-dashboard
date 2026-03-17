@@ -1,80 +1,94 @@
 
 
-# Plan: Pet Documents Upload + Vaccination Entry Fix
+# Services Catalog and Medication Billing Integration
 
-## Problem Analysis
+## Overview
 
-**Three distinct issues identified:**
-
-1. **No document storage exists** — There's no storage bucket, no `pet_documents` table, and no `photo_url` column on the `pets` table. Pet photos are currently base64 data URLs that never persist to the DB.
-
-2. **No way to upload documents per pet** — Pet parents provide lab results, previous records, certificates, etc. These need a dedicated upload + viewing area on the Pet Detail page.
-
-3. **Vaccinations can't be added from the UI** — The `createVaccination` function exists in api-services, but neither the MedicalRecordForm, ConsultationView, nor PetDetail page has a form/modal to actually create a vaccination record. The Vaccinations section on PetDetail is read-only.
+Create a Services Catalog that admins can manage (add/edit/delete services with prices), and integrate it into the invoice creation flow so staff can search and auto-populate line items. Also integrate inventory medications as billable items with automatic price population.
 
 ---
 
-## Implementation
+## What Changes
 
-### Step 1: Database + Storage Setup
+### 1. New data types and mock data
 
-**Migration SQL:**
-- Add `photo_url` column to `pets` table (text, nullable)
-- Create `pet_documents` table: `id`, `clinic_id`, `pet_id`, `file_name`, `file_url`, `file_type`, `file_size_bytes`, `category` (enum: lab_result, certificate, previous_record, imaging, other), `notes`, `uploaded_by_id`, `is_deleted`, `deleted_at`, `created_at`, `updated_at`
-- Create a **public** Supabase storage bucket `pet-files` for photos and documents
-- Add RLS policies on `pet_documents` for authenticated users filtered by clinic_id
-- Add storage policies for authenticated uploads/reads
+**`src/types/api.ts`** -- Add a `ServiceItem` interface:
+```
+interface ServiceItem {
+  id: string;
+  name: string;
+  category: "consultation" | "procedure" | "diagnostic" | "vaccination" | "grooming" | "surgery" | "medication" | "other";
+  price: number;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+```
 
-### Step 2: API Services — Pet Documents + Photo Upload
+**`src/lib/mock-data.ts`** -- Add a mutable `mockServices` array with ~15 predefined services covering:
+- Consultations (General Consultation: 500, Follow-up: 300, Emergency: 1500)
+- Procedures (Dental Cleaning: 3000, Spay/Neuter: 5000, Wound Dressing: 800)
+- Diagnostics (Blood Panel: 3500, X-Ray: 2500, Ultrasound: 4000, Urinalysis: 1200)
+- Vaccinations (Rabies: 1500, DHPP: 1200, Deworming: 300)
+- Grooming (Full Grooming: 1200, Nail Trim: 200)
 
-In `api-services.ts`:
-- `uploadPetFile(file, petId)` — uploads to `pet-files` bucket, returns public URL
-- `createPetDocument(data)` — inserts into `pet_documents`
-- `getPetDocuments(petId)` — fetches documents for a pet
-- `deletePetDocument(id)` — soft delete
-- Update `createPet`/`updatePet` to handle `photo_url` properly (upload file to storage, save URL)
+Also expose `addService` and `updateService` helper functions for runtime CRUD.
 
-### Step 3: Pet Photo Upload (PetForm)
+### 2. Services Catalog management page (admin only)
 
-Currently PetForm creates a base64 data URL via FileReader that never reaches the DB (no `photo_url` column). Fix:
-- On form submit, if a photo file was selected, upload it to `pet-files` bucket first
-- Save the returned public URL as `photo_url` in the pets table
+**New: `src/pages/services/ServicesCatalog.tsx`** -- A table-based management page:
+- Search/filter bar at the top
+- Table columns: Service Name, Category, Price, Status, Actions (Edit/Delete)
+- "Add Service" button opens a dialog with fields: Name (req), Category (select), Price (req), Description (opt)
+- Inline edit via the same dialog pattern
+- Delete with ConfirmDialog
+- "Other" category option allows free-text for custom services
 
-### Step 4: Pet Documents Section (PetDetail)
+**`src/App.tsx`** -- Add route: `/services` under admin-protected routes
 
-Add a new **"Documents"** card on the Pet Detail page:
-- Upload button that opens a file picker (accepts PDF, images, DOCX)
-- Category selector (lab result, certificate, previous record, imaging, other)
-- Optional notes field
-- List of uploaded documents with file name, category badge, upload date, and download/delete actions
-- Click to open/download the document
+**`src/components/AppSidebar.tsx`** -- Add "Services" nav item under Administration section (between Billing and Inventory), using the `ClipboardList` icon
 
-### Step 5: Add Vaccination Modal (PetDetail)
+### 3. Searchable service picker in Invoice Form
 
-Create an **"Add Vaccination"** modal accessible from:
-- The Vaccinations card on PetDetail (add an "+ Add" button, matching Medical History card)
-- Fields: vaccine name, date administered, next due date, batch number, administered by (vet picker), notes
-- Uses `createVaccination` from api-services
-- On save, invalidates `['vaccinations', petId]` query so the list refreshes
+**`src/pages/billing/InvoiceForm.tsx`** -- Replace the plain text `<Input>` for the "Service / Item" column with a searchable combobox (using `cmdk`):
+- When user starts typing, a dropdown shows matching services from `mockServices` + matching medications from `mockInventory` (filtered by category "Medications")
+- Results grouped under "Services" and "Medications" headings
+- Selecting a service auto-fills the description AND the unit price
+- User can still type free text for custom items (the "Other" option)
+- Price field remains editable after auto-fill (admin can override)
+- An "Other (custom)" option always appears at the bottom, keeping the current free-text behavior
 
-Also add edit/delete capabilities to vaccination records via the existing detail dialog.
+### 4. Medication integration in billing
 
-### Step 6: Vaccination Entry from ConsultationView
+Medications from `mockInventory` (category "Medications") appear as a separate group in the service search dropdown in the invoice form. When selected:
+- Description auto-fills with the medication name
+- Price auto-fills from the inventory item's `unit_price`
+- Quantity defaults to 1 but is editable
 
-Add an optional "Vaccinations Administered" section in the Plan (P) section of the SOAP note in ConsultationView:
-- Quick-add vaccination inline (vaccine name, batch number — date auto-set to today, next due auto-calculated based on common schedules)
-- On consultation save, call `createVaccination` for each vaccination entry alongside the medical record
+This means admins don't need to remember medication prices -- they search "Amoxicillin" and it populates automatically.
 
 ---
 
-## Files to Change
+## File Changes Summary
 
-| File | Action |
-|------|--------|
-| DB Migration | Add `photo_url` to pets, create `pet_documents` table, create `pet-files` storage bucket + policies |
-| `src/lib/api-services.ts` | Add document CRUD functions + file upload utility |
-| `src/pages/pets/PetForm.tsx` | Upload photo to storage bucket on save instead of base64 |
-| `src/pages/pets/PetDetail.tsx` | Add Documents card with upload UI + Add Vaccination button/modal |
-| `src/pages/consultation/ConsultationView.tsx` | Add vaccination entry in Plan section |
-| `src/types/api.ts` | Add `PetDocument` interface |
+| File | Action | Description |
+|------|--------|-------------|
+| `src/types/api.ts` | Edit | Add `ServiceItem` interface |
+| `src/lib/mock-data.ts` | Edit | Add `mockServices` array with ~15 services + helper functions |
+| `src/pages/services/ServicesCatalog.tsx` | Create | Admin CRUD page for services catalog |
+| `src/pages/billing/InvoiceForm.tsx` | Edit | Replace line item description input with searchable combobox that searches services + medications |
+| `src/App.tsx` | Edit | Add `/services` route (admin-protected) |
+| `src/components/AppSidebar.tsx` | Edit | Add "Services" link in Administration nav |
+
+---
+
+## Technical Notes
+
+- The service picker in `InvoiceForm` uses the existing `cmdk` package (already installed) wrapped in a `Popover` for each line item's description field
+- Searching combines `mockServices.filter(...)` and `mockInventory.filter(i => i.category === "Medications")` results into grouped dropdown sections
+- When a service/medication is selected, both `description` and `unit_price` fields update via the existing `updateItem()` function
+- The "Other (custom)" fallback ensures backward compatibility -- users can always type a custom description with a manual price
+- The services catalog page follows the same table + dialog pattern used in `InventoryList.tsx` and `StaffList.tsx`
+- Mock services are exported as a mutable array (`let`) with `addService`/`updateService` helpers, matching the pattern used for `mockOwners` and `mockPets`
 

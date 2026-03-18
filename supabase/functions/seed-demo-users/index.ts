@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,7 +18,7 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Get clinic_id from existing users
+    // Get clinic_id from existing admin user
     const { data: existingUser } = await supabase
       .from("users")
       .select("clinic_id")
@@ -35,9 +35,9 @@ serve(async (req) => {
     const clinicId = existingUser.clinic_id;
 
     // Hash passwords
-    const adminHash = await bcrypt.hash("Admin@2026!");
-    const vetHash = await bcrypt.hash("Vet@2026!");
-    const staffHash = await bcrypt.hash("Staff@2026!");
+    const adminHash = bcrypt.hashSync("Admin@2026!", 10);
+    const vetHash = bcrypt.hashSync("Vet@2026!", 10);
+    const staffHash = bcrypt.hashSync("Staff@2026!", 10);
 
     // Update admin password
     const { error: e1 } = await supabase
@@ -51,9 +51,22 @@ serve(async (req) => {
       .update({ password_hash: vetHash })
       .eq("email", "drsmith@miavet.com");
 
-    // Upsert staff user
-    const { error: e3 } = await supabase.from("users").upsert(
-      {
+    // Upsert staff user (check if exists first)
+    const { data: existingStaff } = await supabase
+      .from("users")
+      .select("id")
+      .eq("email", "staff@miavet.com")
+      .maybeSingle();
+
+    let e3 = null;
+    if (existingStaff) {
+      const { error } = await supabase
+        .from("users")
+        .update({ password_hash: staffHash, name: "Anjali Patel", role: "staff", is_active: true, is_deleted: false })
+        .eq("email", "staff@miavet.com");
+      e3 = error;
+    } else {
+      const { error } = await supabase.from("users").insert({
         email: "staff@miavet.com",
         name: "Anjali Patel",
         role: "staff",
@@ -61,9 +74,9 @@ serve(async (req) => {
         clinic_id: clinicId,
         is_active: true,
         is_deleted: false,
-      },
-      { onConflict: "email" }
-    );
+      });
+      e3 = error;
+    }
 
     const errors = [e1, e2, e3].filter(Boolean);
     if (errors.length > 0) {

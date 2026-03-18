@@ -11,19 +11,22 @@ import { useQuery } from "@tanstack/react-query";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
+  const isAdmin = hasRole(["admin"]);
 
   const { data: dashData = mockDashboardData } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: getDashboardStats,
   });
 
-  const stats = [
-    { title: "Today's Appointments", value: dashData.todays_appointments, icon: CalendarDays, color: "text-primary", to: "/appointments" },
-    { title: "Pending Invoices", value: dashData.pending_invoices, icon: Receipt, color: "text-warning", to: "/billing" },
-    { title: "Total Pets", value: dashData.total_pets, icon: PawPrint, color: "text-success", to: "/pets" },
-    { title: "Total Owners", value: dashData.total_owners, icon: Users, color: "text-accent-foreground", to: "/owners" },
+  const allStats = [
+    { title: "Today's Appointments", value: dashData.todays_appointments, icon: CalendarDays, color: "text-primary", to: "/appointments", roles: ["admin", "vet", "staff"] as const },
+    { title: "Pending Invoices", value: dashData.pending_invoices, icon: Receipt, color: "text-warning", to: "/billing", roles: ["admin"] as const },
+    { title: "Total Pets", value: dashData.total_pets, icon: PawPrint, color: "text-success", to: "/pets", roles: ["admin", "vet", "staff"] as const },
+    { title: "Total Owners", value: dashData.total_owners, icon: Users, color: "text-accent-foreground", to: "/owners", roles: ["admin", "vet", "staff"] as const },
   ];
+
+  const stats = allStats.filter((s) => hasRole([...s.roles]));
 
   const greeting = (() => {
     const hour = new Date().getHours();
@@ -95,36 +98,38 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Recent Invoices */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Receipt className="h-4 w-4" /> Recent Invoices
-            </CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/billing")} className="text-xs text-muted-foreground">
-              View all <ArrowRight className="ml-1 h-3 w-3" />
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {dashData.recent_invoices.map((inv) => (
-              <div
-                key={inv.id}
-                className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => navigate(`/billing/${inv.id}`)}
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-sm">{inv.invoice_number} — {inv.owner?.full_name}</p>
-                  <p className="text-xs text-muted-foreground">₹{inv.total.toLocaleString()} · Due {inv.due_date}</p>
+        {/* Recent Invoices - Admin only */}
+        {isAdmin && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Receipt className="h-4 w-4" /> Recent Invoices
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/billing")} className="text-xs text-muted-foreground">
+                View all <ArrowRight className="ml-1 h-3 w-3" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {dashData.recent_invoices.map((inv) => (
+                <div
+                  key={inv.id}
+                  className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => navigate(`/billing/${inv.id}`)}
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{inv.invoice_number} — {inv.owner?.full_name}</p>
+                    <p className="text-xs text-muted-foreground">₹{inv.total.toLocaleString()} · Due {inv.due_date}</p>
+                  </div>
+                  <StatusBadge status={inv.status} />
                 </div>
-                <StatusBadge status={inv.status} />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+              ))}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {/* Low Stock Alerts */}
-      {dashData.low_stock_items.length > 0 && (
+      {/* Low Stock Alerts - Admin only */}
+      {isAdmin && dashData.low_stock_items.length > 0 && (
         <Card className="border-warning/30">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base text-warning">

@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
-import type { User, AuthResponse, UserRole } from "@/types/api";
-import { mockLogin } from "@/lib/mock-data";
+import type { User, UserRole } from "@/types/api";
 import { supabase } from "@/lib/supabase";
 import bcrypt from "bcryptjs";
 
@@ -29,19 +28,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Query users table directly
       const { data, error } = await supabase
         .from("users")
         .select("*")
         .eq("email", email)
         .eq("is_deleted", false)
         .eq("is_active", true)
-        .single();
+        .maybeSingle();
 
-      if (error || !data) {
-        const e: any = new Error("Invalid email or password");
-        if (error?.code) e.code = error.code;
-        throw e;
+      if (error) {
+        throw new Error("Unable to connect to the server. Please try again.");
+      }
+
+      if (!data) {
+        throw new Error("Invalid email or password");
       }
 
       // Verify password with bcrypt
@@ -69,21 +69,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(sessionToken);
       setUser(mappedUser);
     } catch (err: any) {
-      // If network/Supabase error, fall back to mock login
-      if (
-        err.message === "Failed to fetch" ||
-        err.message === "Load failed" ||
-        err.code === "PGRST116" // no rows found - could be empty DB
-      ) {
-        console.warn("[Auth] Supabase unreachable or empty, using mock login");
-        const data = mockLogin(email, password);
-        localStorage.setItem("auth_token", data.access_token);
-        localStorage.setItem("auth_user", JSON.stringify(data.user));
-        setToken(data.access_token);
-        setUser(data.user);
-      } else {
-        throw err;
+      // Network errors
+      if (err.message === "Failed to fetch" || err.message === "Load failed") {
+        throw new Error("Unable to connect to the server. Please check your connection.");
       }
+      throw err;
     } finally {
       setIsLoading(false);
     }

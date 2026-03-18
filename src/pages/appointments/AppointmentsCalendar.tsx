@@ -887,22 +887,29 @@ const DayGrid = React.forwardRef<
                 </div>
               );
             })}
-            {dayApts.map((apt) => {
+            {layoutOverlappingAppointments(dayApts).map(({ apt, colIndex, totalCols }) => {
               const { start, end } = parseAppointmentTime(apt);
               const top = (start.getHours() - START_HOUR) * HOUR_HEIGHT + (start.getMinutes() / 60) * HOUR_HEIGHT;
               const height = Math.max((differenceInMinutes(end, start) / 60) * HOUR_HEIGHT, 25);
               const color = getVetColor(apt.vet_id);
+              const leftPct = (colIndex / totalCols) * 100;
+              const widthPct = (1 / totalCols) * 100;
               return (
                 <DraggableAppointment
                   key={apt.id}
                   apt={apt}
                   className={cn(
-                    "absolute left-2 right-2 rounded border-l-2 px-2 py-1 text-xs overflow-hidden z-10",
+                    "absolute rounded-md border-l-2 px-2 py-1 text-xs overflow-hidden z-10 shadow-sm",
                     color.bg,
                     color.border,
                     color.text
                   )}
-                  style={{ top, height }}
+                  style={{
+                    top,
+                    height,
+                    left: `calc(${leftPct}% + 4px)`,
+                    width: `calc(${widthPct}% - 8px)`,
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectAppointment(apt);

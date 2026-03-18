@@ -90,6 +90,7 @@ export function AppSidebar() {
 
         {isVetOrAdmin && (
           <SidebarGroup>
+            <SidebarGroupLabel>Clinical</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>

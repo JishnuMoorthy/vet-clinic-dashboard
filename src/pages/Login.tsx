@@ -10,9 +10,9 @@ import { PawPrint, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const QUICK_LOGINS = [
-  { label: "Admin", email: "admin@pawscare.com", password: "Admin@2026!", icon: "🛡️" },
-  { label: "Veterinarian", email: "rajesh.sharma@pawscare.com", password: "Vet@2026!", icon: "🩺" },
-  { label: "Staff", email: "anjali@pawscare.com", password: "Staff@2026!", icon: "👤" },
+  { label: "Admin", email: "admin@miavet.com", password: "Admin@2026!", icon: "🛡️" },
+  { label: "Veterinarian", email: "drsmith@miavet.com", password: "Vet@2026!", icon: "🩺" },
+  { label: "Staff", email: "staff@miavet.com", password: "Staff@2026!", icon: "👤" },
 ];
 
 export default function Login() {

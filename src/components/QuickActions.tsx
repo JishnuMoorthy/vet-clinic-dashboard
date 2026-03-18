@@ -1,22 +1,31 @@
 import { useNavigate } from "react-router-dom";
 import { PawPrint, CalendarPlus, UserPlus, Receipt, Package, UserCog } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import type { UserRole } from "@/types/api";
 
-const actions = [
-  { label: "Add Pet", description: "Register a new pet", icon: PawPrint, to: "/pets/new", color: "bg-primary/10 text-primary hover:bg-primary/20", adminOnly: false },
-  { label: "New Appointment", description: "Schedule a visit", icon: CalendarPlus, to: "/appointments/new", color: "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20", adminOnly: false },
-  { label: "Add Owner", description: "Register pet parent", icon: UserPlus, to: "/owners/new", color: "bg-violet-500/10 text-violet-600 hover:bg-violet-500/20", adminOnly: false },
-  { label: "Create Invoice", description: "Bill a client", icon: Receipt, to: "/billing/new", color: "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20", adminOnly: true },
-  { label: "Add Inventory", description: "Stock new item", icon: Package, to: "/inventory/new", color: "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20", adminOnly: true },
-  { label: "Add Staff", description: "Onboard team member", icon: UserCog, to: "/staff/new", color: "bg-rose-500/10 text-rose-600 hover:bg-rose-500/20", adminOnly: true },
+interface QuickAction {
+  label: string;
+  description: string;
+  icon: typeof PawPrint;
+  to: string;
+  color: string;
+  roles: UserRole[];
+}
+
+const actions: QuickAction[] = [
+  { label: "Add Pet", description: "Register a new pet", icon: PawPrint, to: "/pets/new", color: "bg-primary/10 text-primary hover:bg-primary/20", roles: ["admin", "vet", "staff"] },
+  { label: "New Appointment", description: "Schedule a visit", icon: CalendarPlus, to: "/appointments/new", color: "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20", roles: ["admin", "vet", "staff"] },
+  { label: "Add Owner", description: "Register pet parent", icon: UserPlus, to: "/owners/new", color: "bg-violet-500/10 text-violet-600 hover:bg-violet-500/20", roles: ["admin", "vet", "staff"] },
+  { label: "Create Invoice", description: "Bill a client", icon: Receipt, to: "/billing/new", color: "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20", roles: ["admin"] },
+  { label: "Add Inventory", description: "Stock new item", icon: Package, to: "/inventory/new", color: "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20", roles: ["admin"] },
+  { label: "Add Staff", description: "Onboard team member", icon: UserCog, to: "/staff/new", color: "bg-rose-500/10 text-rose-600 hover:bg-rose-500/20", roles: ["admin"] },
 ];
 
 export function QuickActions() {
   const navigate = useNavigate();
   const { hasRole } = useAuth();
-  const isAdmin = hasRole(["admin"]);
 
-  const visibleActions = actions.filter((a) => !a.adminOnly || isAdmin);
+  const visibleActions = actions.filter((a) => hasRole(a.roles));
 
   return (
     <div>

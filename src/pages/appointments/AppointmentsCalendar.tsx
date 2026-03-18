@@ -551,12 +551,12 @@ function DraggableAppointment({
       draggable={apt.status === "scheduled"}
       onDragStart={(e) => handleDragStart(e, apt.id)}
       onDragEnd={handleDragEnd}
-      className={cn(className, apt.status === "scheduled" && "cursor-grab active:cursor-grabbing")}
+      className={cn(className, apt.status === "scheduled" && "cursor-grab active:cursor-grabbing", "group")}
       style={style}
       onClick={onClick}
     >
       {apt.status === "scheduled" && (
-        <GripVertical className="absolute top-0.5 right-0.5 h-3 w-3 opacity-30" />
+        <GripVertical className="absolute top-0.5 right-0.5 h-3 w-3 opacity-0 group-hover:opacity-40 transition-opacity" />
       )}
       {children}
     </div>

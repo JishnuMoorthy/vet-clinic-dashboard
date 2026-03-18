@@ -38,7 +38,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq("is_active", true)
         .single();
 
-      if (error || !data) throw new Error("Invalid email or password");
+      if (error || !data) {
+        const e: any = new Error("Invalid email or password");
+        if (error?.code) e.code = error.code;
+        throw e;
+      }
 
       // Verify password with bcrypt
       const passwordValid = await bcrypt.compare(password, data.password_hash);

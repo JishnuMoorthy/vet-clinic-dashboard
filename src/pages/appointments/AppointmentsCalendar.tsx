@@ -100,6 +100,64 @@ function parseAppointmentTime(apt: Appointment): { start: Date; end: Date } {
   return { start, end };
 }
 
+// ============= Overlap Layout Algorithm =============
+
+interface LayoutedAppointment {
+  apt: Appointment;
+  colIndex: number;
+  totalCols: number;
+}
+
+function layoutOverlappingAppointments(apts: Appointment[]): LayoutedAppointment[] {
+  if (apts.length === 0) return [];
+
+  const parsed = apts.map((apt) => ({ apt, ...parseAppointmentTime(apt) }));
+  parsed.sort((a, b) => a.start.getTime() - b.start.getTime() || a.end.getTime() - b.end.getTime());
+
+  // Group into overlap clusters
+  const clusters: typeof parsed[] = [];
+  let currentCluster = [parsed[0]];
+
+  for (let i = 1; i < parsed.length; i++) {
+    const clusterEnd = Math.max(...currentCluster.map((c) => c.end.getTime()));
+    if (parsed[i].start.getTime() < clusterEnd) {
+      currentCluster.push(parsed[i]);
+    } else {
+      clusters.push(currentCluster);
+      currentCluster = [parsed[i]];
+    }
+  }
+  clusters.push(currentCluster);
+
+  // Assign columns within each cluster
+  const result: LayoutedAppointment[] = [];
+  for (const cluster of clusters) {
+    const columns: typeof parsed[number][][] = [];
+    for (const item of cluster) {
+      let placed = false;
+      for (let c = 0; c < columns.length; c++) {
+        const lastInCol = columns[c][columns[c].length - 1];
+        if (item.start.getTime() >= lastInCol.end.getTime()) {
+          columns[c].push(item);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        columns.push([item]);
+      }
+    }
+    const totalCols = columns.length;
+    columns.forEach((col, colIndex) => {
+      col.forEach((item) => {
+        result.push({ apt: item.apt, colIndex, totalCols });
+      });
+    });
+  }
+
+  return result;
+}
+
 // ============= Drag helpers =============
 
 function handleDragStart(e: DragEvent, aptId: string) {
@@ -493,12 +551,12 @@ function DraggableAppointment({
       draggable={apt.status === "scheduled"}
       onDragStart={(e) => handleDragStart(e, apt.id)}
       onDragEnd={handleDragEnd}
-      className={cn(className, apt.status === "scheduled" && "cursor-grab active:cursor-grabbing")}
+      className={cn(className, apt.status === "scheduled" && "cursor-grab active:cursor-grabbing", "group")}
       style={style}
       onClick={onClick}
     >
       {apt.status === "scheduled" && (
-        <GripVertical className="absolute top-0.5 right-0.5 h-3 w-3 opacity-30" />
+        <GripVertical className="absolute top-0.5 right-0.5 h-3 w-3 opacity-0 group-hover:opacity-40 transition-opacity" />
       )}
       {children}
     </div>
@@ -726,23 +784,30 @@ const WeekGrid = React.forwardRef<
                     </div>
                   );
                 })}
-                {/* Appointment blocks */}
-                {dayApts.map((apt) => {
+                {/* Appointment blocks with overlap layout */}
+                {layoutOverlappingAppointments(dayApts).map(({ apt, colIndex, totalCols }) => {
                   const { start, end } = parseAppointmentTime(apt);
                   const top = (start.getHours() - START_HOUR) * HOUR_HEIGHT + (start.getMinutes() / 60) * HOUR_HEIGHT;
                   const height = Math.max((differenceInMinutes(end, start) / 60) * HOUR_HEIGHT, 25);
                   const color = getVetColor(apt.vet_id);
+                  const leftPct = (colIndex / totalCols) * 100;
+                  const widthPct = (1 / totalCols) * 100;
                   return (
                     <DraggableAppointment
                       key={apt.id}
                       apt={apt}
                       className={cn(
-                        "absolute left-1 right-1 rounded border-l-2 px-1.5 py-0.5 text-[11px] overflow-hidden z-10",
+                        "absolute rounded-md border-l-2 px-1.5 py-0.5 text-[11px] overflow-hidden z-10 shadow-sm",
                         color.bg,
                         color.border,
                         color.text
                       )}
-                      style={{ top, height }}
+                      style={{
+                        top,
+                        height,
+                        left: `calc(${leftPct}% + 2px)`,
+                        width: `calc(${widthPct}% - 4px)`,
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelectAppointment(apt);
@@ -822,22 +887,29 @@ const DayGrid = React.forwardRef<
                 </div>
               );
             })}
-            {dayApts.map((apt) => {
+            {layoutOverlappingAppointments(dayApts).map(({ apt, colIndex, totalCols }) => {
               const { start, end } = parseAppointmentTime(apt);
               const top = (start.getHours() - START_HOUR) * HOUR_HEIGHT + (start.getMinutes() / 60) * HOUR_HEIGHT;
               const height = Math.max((differenceInMinutes(end, start) / 60) * HOUR_HEIGHT, 25);
               const color = getVetColor(apt.vet_id);
+              const leftPct = (colIndex / totalCols) * 100;
+              const widthPct = (1 / totalCols) * 100;
               return (
                 <DraggableAppointment
                   key={apt.id}
                   apt={apt}
                   className={cn(
-                    "absolute left-2 right-2 rounded border-l-2 px-2 py-1 text-xs overflow-hidden z-10",
+                    "absolute rounded-md border-l-2 px-2 py-1 text-xs overflow-hidden z-10 shadow-sm",
                     color.bg,
                     color.border,
                     color.text
                   )}
-                  style={{ top, height }}
+                  style={{
+                    top,
+                    height,
+                    left: `calc(${leftPct}% + 4px)`,
+                    width: `calc(${widthPct}% - 8px)`,
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectAppointment(apt);

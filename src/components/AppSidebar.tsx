@@ -46,6 +46,7 @@ const adminNav = [
 export function AppSidebar() {
   const { user, logout, hasRole } = useAuth();
   const isAdmin = hasRole(["admin"]);
+  const isVet = hasRole(["vet"]);
   const isVetOrAdmin = hasRole(["vet", "admin"]);
 
   return (
@@ -89,6 +90,7 @@ export function AppSidebar() {
 
         {isVetOrAdmin && (
           <SidebarGroup>
+            <SidebarGroupLabel>Clinical</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>

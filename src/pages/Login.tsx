@@ -9,6 +9,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { PawPrint, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+const QUICK_LOGINS = [
+  { label: "Admin", email: "admin@pawscare.com", password: "Admin@2026!", icon: "🛡️" },
+  { label: "Veterinarian", email: "rajesh.sharma@pawscare.com", password: "Vet@2026!", icon: "🩺" },
+  { label: "Staff", email: "anjali@pawscare.com", password: "Staff@2026!", icon: "👤" },
+];
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,6 +35,19 @@ export default function Login() {
       toast({
         title: "Login failed",
         description: err.message || "Invalid email or password",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleQuickLogin = async (qEmail: string, qPassword: string) => {
+    try {
+      await login(qEmail, qPassword);
+      navigate("/dashboard", { replace: true });
+    } catch (err: any) {
+      toast({
+        title: "Login failed",
+        description: err.message || "Invalid credentials",
         variant: "destructive",
       });
     }
@@ -81,6 +100,32 @@ export default function Login() {
               Sign In
             </Button>
           </form>
+
+          <div className="mt-6">
+            <div className="relative mb-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">Quick Access</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {QUICK_LOGINS.map((q) => (
+                <Button
+                  key={q.label}
+                  variant="outline"
+                  size="sm"
+                  className="flex flex-col items-center gap-1 h-auto py-3 text-xs"
+                  disabled={isLoading}
+                  onClick={() => handleQuickLogin(q.email, q.password)}
+                >
+                  <span className="text-lg">{q.icon}</span>
+                  <span>{q.label}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

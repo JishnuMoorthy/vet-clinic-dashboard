@@ -1,94 +1,63 @@
 
 
-# Services Catalog and Medication Billing Integration
+# Plan: Real Supabase Users + Role-Differentiated Experience
 
-## Overview
+## Current State
 
-Create a Services Catalog that admins can manage (add/edit/delete services with prices), and integrate it into the invoice creation flow so staff can search and auto-populate line items. Also integrate inventory medications as billable items with automatic price population.
+**DB users:** admin@miavet.com (admin), drsmith@miavet.com (vet), radhika@miavet.com (vet). No staff user exists.
 
----
+**Problem:** Quick login buttons point to mock emails (admin@pawscare.com, etc.) that don't exist in Supabase. Auth falls back to mock data. Also, Vet and Staff currently see the same sidebar (Clinic group only) -- their experiences aren't differentiated.
 
 ## What Changes
 
-### 1. New data types and mock data
+### 1. Seed a Staff User + Set Known Passwords (Edge Function)
 
-**`src/types/api.ts`** -- Add a `ServiceItem` interface:
-```
-interface ServiceItem {
-  id: string;
-  name: string;
-  category: "consultation" | "procedure" | "diagnostic" | "vaccination" | "grooming" | "surgery" | "medication" | "other";
-  price: number;
-  description?: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-```
+Create a one-time edge function `seed-demo-users` that:
+- Inserts a new staff user: `staff@miavet.com` / `Anjali Patel` / role `staff`
+- Updates password hashes for all 3 users to known passwords using bcrypt
+- Returns the credentials on success
 
-**`src/lib/mock-data.ts`** -- Add a mutable `mockServices` array with ~15 predefined services covering:
-- Consultations (General Consultation: 500, Follow-up: 300, Emergency: 1500)
-- Procedures (Dental Cleaning: 3000, Spay/Neuter: 5000, Wound Dressing: 800)
-- Diagnostics (Blood Panel: 3500, X-Ray: 2500, Ultrasound: 4000, Urinalysis: 1200)
-- Vaccinations (Rabies: 1500, DHPP: 1200, Deworming: 300)
-- Grooming (Full Grooming: 1200, Nail Trim: 200)
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | admin@miavet.com | Admin@2026! |
+| Veterinarian | drsmith@miavet.com | Vet@2026! |
+| Staff | staff@miavet.com | Staff@2026! |
 
-Also expose `addService` and `updateService` helper functions for runtime CRUD.
+### 2. Update Login.tsx Quick Access Buttons
 
-### 2. Services Catalog management page (admin only)
+Change `QUICK_LOGINS` to use the real Supabase emails above instead of the mock `@pawscare.com` ones.
 
-**New: `src/pages/services/ServicesCatalog.tsx`** -- A table-based management page:
-- Search/filter bar at the top
-- Table columns: Service Name, Category, Price, Status, Actions (Edit/Delete)
-- "Add Service" button opens a dialog with fields: Name (req), Category (select), Price (req), Description (opt)
-- Inline edit via the same dialog pattern
-- Delete with ConfirmDialog
-- "Other" category option allows free-text for custom services
+### 3. Remove Mock Login Fallback in AuthContext
 
-**`src/App.tsx`** -- Add route: `/services` under admin-protected routes
+- Change `.single()` to `.maybeSingle()` so missing users return null instead of throwing PGRST116
+- Remove the entire mock fallback catch block -- if user isn't in Supabase, login fails cleanly
+- Keep the "Failed to fetch" / "Load failed" network error handling but show a proper error message
 
-**`src/components/AppSidebar.tsx`** -- Add "Services" nav item under Administration section (between Billing and Inventory), using the `ClipboardList` icon
+### 4. Differentiate Vet vs Staff Experience
 
-### 3. Searchable service picker in Invoice Form
+Thinking critically about what each role actually needs:
 
-**`src/pages/billing/InvoiceForm.tsx`** -- Replace the plain text `<Input>` for the "Service / Item" column with a searchable combobox (using `cmdk`):
-- When user starts typing, a dropdown shows matching services from `mockServices` + matching medications from `mockInventory` (filtered by category "Medications")
-- Results grouped under "Services" and "Medications" headings
-- Selecting a service auto-fills the description AND the unit price
-- User can still type free text for custom items (the "Other" option)
-- Price field remains editable after auto-fill (admin can override)
-- An "Other (custom)" option always appears at the bottom, keeping the current free-text behavior
+**Staff** (receptionist/front-desk): Their job is scheduling, registering pets/owners, and basic admin. They should NOT see clinical tools or financial data.
+- **Sidebar:** Clinic group only (Dashboard, Pets, Owners, Appointments). No Clinical section, no Administration.
+- **Quick Actions:** Add Pet, New Appointment, Add Owner only
+- **Dashboard:** Show stats for Today's Appointments, Total Pets, Total Owners. Hide Pending Invoices (financial). Hide Recent Invoices card. Hide Low Stock Alerts.
 
-### 4. Medication integration in billing
+**Vet** (veterinarian): Their job is clinical care. They need patient access and their schedule, but not financial/admin operations.
+- **Sidebar:** Clinic group + Clinical group (Today's Patients). No Administration section.
+- **Quick Actions:** Add Pet, New Appointment, Add Owner (same as staff, but they also get access to consultations via sidebar)
+- **Dashboard:** Show Today's Appointments, Total Pets, Total Owners. Hide Pending Invoices. Show Upcoming Appointments card. Hide Recent Invoices. Hide Low Stock.
 
-Medications from `mockInventory` (category "Medications") appear as a separate group in the service search dropdown in the invoice form. When selected:
-- Description auto-fills with the medication name
-- Price auto-fills from the inventory item's `unit_price`
-- Quantity defaults to 1 but is editable
+**Admin**: Sees everything (already works correctly).
 
-This means admins don't need to remember medication prices -- they search "Amoxicillin" and it populates automatically.
+### Files to Change
 
----
-
-## File Changes Summary
-
-| File | Action | Description |
-|------|--------|-------------|
-| `src/types/api.ts` | Edit | Add `ServiceItem` interface |
-| `src/lib/mock-data.ts` | Edit | Add `mockServices` array with ~15 services + helper functions |
-| `src/pages/services/ServicesCatalog.tsx` | Create | Admin CRUD page for services catalog |
-| `src/pages/billing/InvoiceForm.tsx` | Edit | Replace line item description input with searchable combobox that searches services + medications |
-| `src/App.tsx` | Edit | Add `/services` route (admin-protected) |
-| `src/components/AppSidebar.tsx` | Edit | Add "Services" link in Administration nav |
-
----
-
-## Technical Notes
-
-- The service picker in `InvoiceForm` uses the existing `cmdk` package (already installed) wrapped in a `Popover` for each line item's description field
-- Searching combines `mockServices.filter(...)` and `mockInventory.filter(i => i.category === "Medications")` results into grouped dropdown sections
-- When a service/medication is selected, both `description` and `unit_price` fields update via the existing `updateItem()` function
-- The "Other (custom)" fallback ensures backward compatibility -- users can always type a custom description with a manual price
-- The services catalog page follows the same table + dialog pattern used in `InventoryList.tsx` and `StaffList.tsx`
-- Mock services are exported as a mutable array (`let`) with `addService`/`updateService` helpers, matching the pattern used for `mockOwners` and `mockPets`
+| File | Change |
+|------|--------|
+| `supabase/functions/seed-demo-users/index.ts` | New edge function -- hash passwords, upsert 3 users |
+| `supabase/config.toml` | Add `[functions.seed-demo-users]` with `verify_jwt = false` |
+| `src/pages/Login.tsx` | Update QUICK_LOGINS to real @miavet.com emails |
+| `src/contexts/AuthContext.tsx` | Use `.maybeSingle()`, remove mock fallback |
+| `src/components/QuickActions.tsx` | Add role-aware visibility (not just adminOnly, add `roles` array per action) |
+| `src/pages/Dashboard.tsx` | Conditionally hide Invoices stat, Invoices card, and Low Stock card for non-admin. Hide Invoices stat for vet/staff. |
+| `src/components/AppSidebar.tsx` | Already correct -- just verify Clinical shows for vet+admin, Admin section for admin only |
 

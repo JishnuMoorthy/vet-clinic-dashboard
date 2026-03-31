@@ -124,17 +124,19 @@ function useClinicMetrics(
     // ── Revenue per service category (from line items) ──
     const serviceRevenue: Record<string, number> = {};
     invoices.forEach((inv) => {
-      inv.line_items.forEach((li) => {
-        const cat = li.description.toLowerCase().includes("consult")
+      const items = Array.isArray(inv.line_items) ? inv.line_items : [];
+      items.forEach((li: any) => {
+        const desc = (li.description || "").toLowerCase();
+        const cat = desc.includes("consult")
           ? "Consultation"
-          : li.description.toLowerCase().includes("vaccin")
+          : desc.includes("vaccin")
           ? "Vaccination"
-          : li.description.toLowerCase().includes("groom")
+          : desc.includes("groom")
           ? "Grooming"
-          : li.description.toLowerCase().includes("x-ray")
+          : desc.includes("x-ray")
           ? "Diagnostics"
           : "Treatment";
-        serviceRevenue[cat] = (serviceRevenue[cat] || 0) + li.total;
+        serviceRevenue[cat] = (serviceRevenue[cat] || 0) + (li.total || 0);
       });
     });
     const serviceRevenueData = Object.entries(serviceRevenue)

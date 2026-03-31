@@ -109,7 +109,7 @@ export default function InvoiceDetail() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {inv.line_items.map((li, i) => (
+                {(Array.isArray(inv.line_items) ? inv.line_items : []).map((li: any, i: number) => (
                   <TableRow key={i}>
                     <TableCell>{li.description}</TableCell>
                     <TableCell className="text-right">{li.quantity}</TableCell>

@@ -90,7 +90,7 @@ export function mapInvoice(inv: any): Invoice {
     ...inv,
     pet: inv.pets ? mapPet(inv.pets) : inv.pet ? mapPet(inv.pet) : undefined,
     owner: inv.pet_owners ? mapOwner(inv.pet_owners) : inv.owner ? mapOwner(inv.owner) : undefined,
-    line_items: inv.line_items || [],
+    line_items: (() => { const raw = inv.line_items; if (!raw) return []; if (typeof raw === "string") { try { return JSON.parse(raw); } catch { return []; } } return Array.isArray(raw) ? raw : []; })(),
     subtotal: inv.amount ?? inv.subtotal ?? 0,
     discount: inv.discount ?? 0,
     total: inv.total_amount ?? inv.total ?? 0,

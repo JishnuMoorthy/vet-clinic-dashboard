@@ -971,7 +971,7 @@ export function mapMedicalRecord(r: any): MedicalRecord {
     primary_diagnosis: r.primary_diagnosis || notesObj.primary_diagnosis || r.diagnosis || "",
     differential_diagnoses: notesObj.differential_diagnoses || r.differential_diagnoses || "",
     severity: r.severity || notesObj.severity || "mild",
-    prescriptions: notesObj.prescriptions || r.prescriptions_json || r.prescriptions || [],
+    prescriptions: (() => { const raw = notesObj.prescriptions || r.prescriptions_json || r.prescriptions || []; if (typeof raw === "string") { try { return JSON.parse(raw); } catch { return []; } } return Array.isArray(raw) ? raw : []; })(),
     procedures_performed: notesObj.procedures_performed || r.procedures_performed || r.treatment || "",
     follow_up_instructions: notesObj.follow_up_instructions || r.follow_up_instructions || "",
     next_appointment_recommendation: notesObj.next_appointment_recommendation || r.next_appointment_recommendation || "",

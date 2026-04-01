@@ -37,9 +37,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Greeting */}
+      {/* Quick summary */}
       <div>
-        <h1 className="text-2xl font-bold">{greeting}, {user?.full_name?.split(" ")[0]} 👋</h1>
+        <h1 className="text-2xl font-bold">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Here's what's happening at your clinic today.</p>
       </div>
 

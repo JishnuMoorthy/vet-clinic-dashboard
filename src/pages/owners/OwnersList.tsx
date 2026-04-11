@@ -6,6 +6,7 @@ import { mockOwners } from "@/lib/mock-data";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search } from "lucide-react";
 
@@ -57,7 +58,14 @@ export default function OwnersList() {
             <TableBody>
               {filtered.map((owner) => (
                 <TableRow key={owner.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/owners/${owner.id}`)}>
-                  <TableCell className="font-medium">{owner.full_name}</TableCell>
+                  <TableCell className="font-medium">
+                    {owner.full_name}
+                    {owner.info_complete === false && (
+                      <Badge variant="outline" className="ml-2 text-amber-600 border-amber-500/40">
+                        Complete Info
+                      </Badge>
+                    )}
+                  </TableCell>
                   <TableCell>{owner.phone}</TableCell>
                   <TableCell>{owner.email || "—"}</TableCell>
                   <TableCell>{owner.pets_count}</TableCell>

@@ -11,21 +11,12 @@ import type {
   MedicalRecord,
   PetDocument,
 } from "@/types/api";
-import { supabase, getClinicId } from "@/lib/supabase";
-import bcrypt from "bcryptjs";
-import {
-  mockOwners,
-  mockPets,
-  mockAppointments,
-  mockInvoices,
-  mockInventory,
-  mockUsers,
-  mockDashboardData,
-  mockMedicalRecords,
-  mockVaccinations,
-} from "@/lib/mock-data";
+import { api } from "@/lib/api";
 
 // ─── Mappers ─────────────────────────────────────────────────────────────────
+// The FastAPI backend returns flat snake_case shapes (e.g. `owner_name`,
+// `pet_name`, `vet_name`). Mappers normalize these into the nested camelCase
+// shapes the frontend components consume.
 
 export function mapUser(u: any): User {
   return {
@@ -41,34 +32,51 @@ export function mapOwner(o: any): PetOwner {
     ...o,
     full_name: o.name || o.full_name || "",
     pets_count: o.pet_count ?? o.pets_count ?? 0,
+    info_complete: o.info_complete ?? true,
   };
 }
 
 export function mapPet(p: any): Pet {
-  // DB stores gender as lowercase; frontend expects capitalized
   const gender = p.gender ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1) : p.gender;
+  const owner =
+    p.owner ??
+    (p.owner_name ? { id: p.owner_id, full_name: p.owner_name } : undefined);
   return {
     ...p,
     gender,
     status: p.health_status || p.status || "active",
     weight: p.weight_kg ?? p.weight,
-    owner: p.pet_owners ? mapOwner(p.pet_owners) : p.owner ? mapOwner(p.owner) : undefined,
-    vet: p.vet ? mapUser(p.vet) : undefined,
+    owner,
+    info_complete: p.info_complete ?? true,
   };
 }
 
 export function mapAppointment(a: any): Appointment {
-  // DB uses "no_show" but frontend uses "no-show"
   let status = a.status || "scheduled";
   if (status === "no_show") status = "no-show";
+  const owner = a.owner_name
+    ? { id: a.owner_id, full_name: a.owner_name, phone: a.owner_phone || "" }
+    : undefined;
+  const pet = a.pet_name
+    ? {
+        id: a.pet_id,
+        name: a.pet_name,
+        species: a.pet_species,
+        breed: a.pet_breed,
+        photo_url: a.pet_photo_url,
+        owner,
+      }
+    : undefined;
+  const vet = a.vet_name ? { id: a.vet_id, full_name: a.vet_name } : undefined;
   return {
     ...a,
     status,
     date: a.appointment_date || a.date || "",
     time: a.appointment_time || a.time || "",
-    pet: a.pets ? mapPet(a.pets) : a.pet ? mapPet(a.pet) : undefined,
-    vet: a.users ? mapUser(a.users) : a.vet ? mapUser(a.vet) : undefined,
-  };
+    pet,
+    vet,
+    owner,
+  } as Appointment;
 }
 
 export function mapInventoryItem(i: any): InventoryItem {
@@ -86,6 +94,8 @@ export function mapInventoryItem(i: any): InventoryItem {
 }
 
 export function mapInvoice(inv: any): Invoice {
+  const pet = inv.pet_name ? { id: inv.pet_id, name: inv.pet_name } : undefined;
+  const owner = inv.owner_name ? { id: inv.owner_id, full_name: inv.owner_name } : undefined;
   return {
     ...inv,
     pet: inv.pets ? mapPet(inv.pets) : inv.pet ? mapPet(inv.pet) : undefined,
@@ -99,197 +109,83 @@ export function mapInvoice(inv: any): Invoice {
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 
+interface BackendStats {
+  total_pets: number;
+  total_owners: number;
+  total_appointments: number;
+  upcoming_appointments: number;
+  total_staff: number;
+  total_inventory_items: number;
+  low_stock_items: number;
+  pending_invoices: number;
+  total_revenue: number;
+}
+
 export async function getDashboardStats(): Promise<DashboardData> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
+  const today = new Date().toISOString().split("T")[0];
+  const [stats, upcoming, recentInvoices, lowStock] = await Promise.all([
+    api.get<BackendStats>("/dashboard/stats"),
+    api.get<{ data: any[] }>(
+      `/appointments?date_from=${today}&limit=5`
+    ),
+    api.get<{ data: any[] }>(`/invoices?limit=5`),
+    api.get<{ data: any[] }>(`/inventory?low_stock_only=true&limit=10`),
+  ]);
 
-    const today = new Date().toISOString().split("T")[0];
-
-    const [
-      { count: todayAppts },
-      { count: pendingInv },
-      { count: totalPets },
-      { count: totalOwners },
-      { data: recentAppts },
-      { data: recentInvoices },
-      { data: lowStockItems },
-    ] = await Promise.all([
-      supabase.from("appointments").select("*", { count: "exact", head: true })
-        .eq("clinic_id", clinicId).eq("is_deleted", false).eq("appointment_date", today),
-      supabase.from("invoices").select("*", { count: "exact", head: true })
-        .eq("clinic_id", clinicId).eq("is_deleted", false).eq("status", "pending"),
-      supabase.from("pets").select("*", { count: "exact", head: true })
-        .eq("clinic_id", clinicId).eq("is_deleted", false),
-      supabase.from("pet_owners").select("*", { count: "exact", head: true })
-        .eq("clinic_id", clinicId).eq("is_deleted", false),
-      supabase.from("appointments").select("*, pets(*), users!appointments_vet_id_fkey(*)")
-        .eq("clinic_id", clinicId).eq("is_deleted", false)
-        .gte("appointment_date", today).order("appointment_date").order("appointment_time").limit(5),
-      supabase.from("invoices").select("*, pets(*), pet_owners!invoices_owner_id_fkey(*)")
-        .eq("clinic_id", clinicId).eq("is_deleted", false)
-        .order("created_at", { ascending: false }).limit(5),
-      supabase.from("inventory").select("*")
-        .eq("clinic_id", clinicId).eq("is_deleted", false)
-        .order("quantity", { ascending: true })
-        .limit(20),
-    ]);
-
-    // Filter low stock items client-side since PostgREST can't compare column-to-column
-    const allInventory = (lowStockItems || []).map(mapInventoryItem);
-    const lowStock = allInventory.filter((i) => i.status === "low" || i.status === "out").slice(0, 10);
-
-    return {
-      todays_appointments: todayAppts ?? 0,
-      pending_invoices: pendingInv ?? 0,
-      total_pets: totalPets ?? 0,
-      total_owners: totalOwners ?? 0,
-      upcoming_appointments: (recentAppts || []).map(mapAppointment),
-      recent_invoices: (recentInvoices || []).map(mapInvoice),
-      low_stock_items: lowStock,
-    };
-  } catch (err) {
-    console.warn("[Dashboard] Supabase failed, using mock data", err);
-    return mockDashboardData;
-  }
+  return {
+    todays_appointments: stats.upcoming_appointments ?? 0,
+    pending_invoices: stats.pending_invoices ?? 0,
+    total_pets: stats.total_pets ?? 0,
+    total_owners: stats.total_owners ?? 0,
+    upcoming_appointments: (upcoming.data || []).map(mapAppointment),
+    recent_invoices: (recentInvoices.data || []).map(mapInvoice),
+    low_stock_items: (lowStock.data || []).map(mapInventoryItem),
+  };
 }
 
 // ─── Owners ──────────────────────────────────────────────────────────────────
 
+function buildQuery(params: Record<string, any> | undefined): string {
+  if (!params) return "";
+  const parts: string[] = [];
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== "") {
+      parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
+    }
+  });
+  return parts.length ? `?${parts.join("&")}` : "";
+}
+
 export async function getOwners(params?: { search?: string; skip?: number; limit?: number }) {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-
-    let query = supabase.from("pet_owners").select("*", { count: "exact" })
-      .eq("clinic_id", clinicId).eq("is_deleted", false);
-
-    if (params?.search) {
-      const s = `%${params.search}%`;
-      query = query.or(`name.ilike.${s},phone.ilike.${s},email.ilike.${s}`);
-    }
-
-    query = query.order("created_at", { ascending: false });
-
-    const skip = params?.skip ?? 0;
-    const limit = params?.limit ?? 50;
-    query = query.range(skip, skip + limit - 1);
-
-    const { data, count, error } = await query;
-    if (error) throw error;
-
-    // Count pets per owner
-    const owners = (data || []).map(mapOwner);
-    if (owners.length > 0) {
-      const ownerIds = owners.map((o) => o.id);
-      const { data: petCounts } = await supabase
-        .from("pets")
-        .select("owner_id")
-        .eq("clinic_id", clinicId)
-        .eq("is_deleted", false)
-        .in("owner_id", ownerIds);
-      
-      if (petCounts) {
-        const countMap: Record<string, number> = {};
-        petCounts.forEach((p) => {
-          countMap[p.owner_id] = (countMap[p.owner_id] || 0) + 1;
-        });
-        owners.forEach((o) => { o.pets_count = countMap[o.id] || 0; });
-      }
-    }
-
-    return { data: owners, total: count ?? 0 };
-  } catch (err) {
-    console.warn("[Owners] Supabase failed, using mock data", err);
-    let filtered = [...mockOwners];
-    if (params?.search) {
-      const q = params.search.toLowerCase();
-      filtered = filtered.filter(
-        (o) => o.full_name.toLowerCase().includes(q) || o.phone.includes(q) || o.email?.toLowerCase().includes(q)
-      );
-    }
-    const skip = params?.skip ?? 0;
-    const limit = params?.limit ?? filtered.length;
-    return { data: filtered.slice(skip, skip + limit), total: filtered.length };
-  }
+  const res = await api.get<{ data: any[]; total: number }>(`/owners${buildQuery(params)}`);
+  return { data: (res.data || []).map(mapOwner), total: res.total ?? 0 };
 }
 
 export async function getOwner(id: string): Promise<PetOwner> {
-  try {
-    const clinicId = getClinicId();
-    const { data, error } = await supabase.from("pet_owners").select("*")
-      .eq("id", id).eq("clinic_id", clinicId).eq("is_deleted", false).single();
-    if (error) throw error;
-
-    const owner = mapOwner(data);
-    // Count pets
-    const { count } = await supabase.from("pets").select("*", { count: "exact", head: true })
-      .eq("owner_id", id).eq("clinic_id", clinicId).eq("is_deleted", false);
-    owner.pets_count = count ?? 0;
-    return owner;
-  } catch (err) {
-    console.warn("[Owner] Supabase failed, using mock data", err);
-    const found = mockOwners.find((o) => o.id === id);
-    if (!found) throw new Error("Owner not found");
-    return found;
-  }
+  return mapOwner(await api.get<any>(`/owners/${id}`));
 }
 
 export async function createOwner(data: Partial<PetOwner>): Promise<PetOwner> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-    const { data: row, error } = await supabase.from("pet_owners").insert({
-      clinic_id: clinicId,
-      name: data.full_name || "",
-      phone: data.phone || "",
-      email: data.email || null,
-      address: data.address || null,
-    }).select().single();
-    if (error) throw error;
-    return mapOwner(row);
-  } catch (err) {
-    console.warn("[CreateOwner] Supabase failed, using mock", err);
-    return {
-      id: `owner-${Date.now()}`,
-      full_name: data.full_name || "",
-      phone: data.phone || "",
-      email: data.email,
-      address: data.address,
-      pets_count: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-  }
+  const payload = {
+    name: data.full_name || "",
+    phone: data.phone || "",
+    email: data.email || null,
+    address: data.address || null,
+  };
+  return mapOwner(await api.post<any>("/owners", payload));
 }
 
 export async function updateOwner(id: string, data: Partial<PetOwner>): Promise<PetOwner> {
-  try {
-    const updateData: any = {};
-    if (data.full_name !== undefined) updateData.name = data.full_name;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.email !== undefined) updateData.email = data.email;
-    if (data.address !== undefined) updateData.address = data.address;
-
-    const { data: row, error } = await supabase.from("pet_owners")
-      .update(updateData).eq("id", id).select().single();
-    if (error) throw error;
-    return mapOwner(row);
-  } catch (err) {
-    console.warn("[UpdateOwner] Supabase failed, using mock", err);
-    const existing = mockOwners.find((o) => o.id === id);
-    return { ...(existing || {}), ...data, id, updated_at: new Date().toISOString() } as PetOwner;
-  }
+  const payload: any = {};
+  if (data.full_name !== undefined) payload.name = data.full_name;
+  if (data.phone !== undefined) payload.phone = data.phone;
+  if (data.email !== undefined) payload.email = data.email;
+  if (data.address !== undefined) payload.address = data.address;
+  return mapOwner(await api.put<any>(`/owners/${id}`, payload));
 }
 
 export async function deleteOwner(id: string): Promise<void> {
-  try {
-    const { error } = await supabase.from("pet_owners")
-      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
-    if (error) throw error;
-  } catch (err) {
-    console.warn("[DeleteOwner] Supabase failed", err);
-  }
+  await api.delete(`/owners/${id}`);
 }
 
 // ─── Pets ─────────────────────────────────────────────────────────────────────
@@ -302,126 +198,47 @@ export async function getPets(params?: {
   skip?: number;
   limit?: number;
 }) {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-
-    let query = supabase.from("pets").select("*, pet_owners!pets_owner_id_fkey(*)", { count: "exact" })
-      .eq("clinic_id", clinicId).eq("is_deleted", false);
-
-    if (params?.search) {
-      const s = `%${params.search}%`;
-      query = query.or(`name.ilike.${s},breed.ilike.${s},species.ilike.${s}`);
-    }
-    if (params?.owner_id) query = query.eq("owner_id", params.owner_id);
-    if (params?.species) query = query.eq("species", params.species);
-    if (params?.health_status) query = query.eq("health_status", params.health_status);
-
-    query = query.order("created_at", { ascending: false });
-    const skip = params?.skip ?? 0;
-    const limit = params?.limit ?? 50;
-    query = query.range(skip, skip + limit - 1);
-
-    const { data, count, error } = await query;
-    if (error) throw error;
-    return { data: (data || []).map(mapPet), total: count ?? 0 };
-  } catch (err) {
-    console.warn("[Pets] Supabase failed, using mock data", err);
-    let filtered = [...mockPets];
-    if (params?.search) {
-      const q = params.search.toLowerCase();
-      filtered = filtered.filter(
-        (p) => p.name.toLowerCase().includes(q) || p.breed?.toLowerCase().includes(q) || p.species.toLowerCase().includes(q) || p.owner?.full_name.toLowerCase().includes(q)
-      );
-    }
-    if (params?.owner_id) filtered = filtered.filter((p) => p.owner_id === params.owner_id);
-    if (params?.species) filtered = filtered.filter((p) => p.species.toLowerCase() === params.species!.toLowerCase());
-    const skip = params?.skip ?? 0;
-    const limit = params?.limit ?? filtered.length;
-    return { data: filtered.slice(skip, skip + limit), total: filtered.length };
-  }
+  const res = await api.get<{ data: any[]; total: number }>(`/pets${buildQuery(params)}`);
+  return { data: (res.data || []).map(mapPet), total: res.total ?? 0 };
 }
 
 export async function getPet(id: string): Promise<Pet> {
-  try {
-    const clinicId = getClinicId();
-    const { data, error } = await supabase.from("pets")
-      .select("*, pet_owners!pets_owner_id_fkey(*)")
-      .eq("id", id).eq("clinic_id", clinicId).eq("is_deleted", false).single();
-    if (error) throw error;
-    return mapPet(data);
-  } catch (err) {
-    console.warn("[Pet] Supabase failed, using mock data", err);
-    const found = mockPets.find((p) => p.id === id);
-    if (!found) throw new Error("Pet not found");
-    return found;
-  }
+  return mapPet(await api.get<any>(`/pets/${id}`));
 }
 
 export async function createPet(data: Partial<Pet>): Promise<Pet> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-    const { data: row, error } = await supabase.from("pets").insert({
-      clinic_id: clinicId,
-      name: data.name || "",
-      species: data.species || "Dog",
-      breed: data.breed || null,
-      gender: data.gender ? data.gender.toLowerCase() : null,
-      date_of_birth: data.date_of_birth || null,
-      weight_kg: data.weight ?? null,
-      microchip_id: data.microchip_id || null,
-      health_status: data.status || "healthy",
-      owner_id: data.owner_id || "",
-      photo_url: (data as any).photo_url || null,
-    } as any).select().single();
-    if (error) throw error;
-    return mapPet(row);
-  } catch (err) {
-    console.warn("[CreatePet] Supabase failed, using mock", err);
-    return {
-      id: `pet-${Date.now()}`, name: data.name || "", species: data.species || "Dog",
-      breed: data.breed, gender: data.gender, date_of_birth: data.date_of_birth,
-      weight: data.weight, microchip_id: data.microchip_id, notes: data.notes,
-      status: "active", owner_id: data.owner_id || "",
-      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-    };
-  }
+  const payload: any = {
+    owner_id: data.owner_id || "",
+    name: data.name || "",
+    species: data.species || "Dog",
+    breed: data.breed || null,
+    gender: data.gender ? data.gender.toLowerCase() : null,
+    date_of_birth: data.date_of_birth || null,
+    weight_kg: data.weight ?? null,
+    microchip_id: data.microchip_id || null,
+    health_status: (data as any).status || "healthy",
+    photo_url: (data as any).photo_url || null,
+  };
+  return mapPet(await api.post<any>("/pets", payload));
 }
 
 export async function updatePet(id: string, data: Partial<Pet>): Promise<Pet> {
-  try {
-    const updateData: any = {};
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.species !== undefined) updateData.species = data.species;
-    if (data.breed !== undefined) updateData.breed = data.breed;
-    if (data.gender !== undefined) updateData.gender = data.gender ? data.gender.toLowerCase() : null;
-    if (data.date_of_birth !== undefined) updateData.date_of_birth = data.date_of_birth;
-    if (data.weight !== undefined) updateData.weight_kg = data.weight;
-    if (data.microchip_id !== undefined) updateData.microchip_id = data.microchip_id;
-    if (data.status !== undefined) updateData.health_status = data.status;
-    if (data.owner_id !== undefined) updateData.owner_id = data.owner_id;
-    if ((data as any).photo_url !== undefined) updateData.photo_url = (data as any).photo_url;
-
-    const { data: row, error } = await supabase.from("pets")
-      .update(updateData).eq("id", id).select().single();
-    if (error) throw error;
-    return mapPet(row);
-  } catch (err) {
-    console.warn("[UpdatePet] Supabase failed, using mock", err);
-    const existing = mockPets.find((p) => p.id === id);
-    return { ...(existing || {}), ...data, id, updated_at: new Date().toISOString() } as Pet;
-  }
+  const payload: any = {};
+  if (data.name !== undefined) payload.name = data.name;
+  if (data.species !== undefined) payload.species = data.species;
+  if (data.breed !== undefined) payload.breed = data.breed;
+  if (data.gender !== undefined) payload.gender = data.gender ? data.gender.toLowerCase() : null;
+  if (data.date_of_birth !== undefined) payload.date_of_birth = data.date_of_birth;
+  if (data.weight !== undefined) payload.weight_kg = data.weight;
+  if (data.microchip_id !== undefined) payload.microchip_id = data.microchip_id;
+  if ((data as any).status !== undefined) payload.health_status = (data as any).status;
+  if (data.owner_id !== undefined) payload.owner_id = data.owner_id;
+  if ((data as any).photo_url !== undefined) payload.photo_url = (data as any).photo_url;
+  return mapPet(await api.put<any>(`/pets/${id}`, payload));
 }
 
 export async function deletePet(id: string): Promise<void> {
-  try {
-    const { error } = await supabase.from("pets")
-      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
-    if (error) throw error;
-  } catch (err) {
-    console.warn("[DeletePet] Supabase failed", err);
-  }
+  await api.delete(`/pets/${id}`);
 }
 
 // ─── Appointments ─────────────────────────────────────────────────────────────
@@ -429,117 +246,62 @@ export async function deletePet(id: string): Promise<void> {
 export async function getAppointments(params?: {
   date_from?: string;
   date_to?: string;
+  status?: string;
+  pet_id?: string;
+  vet_id?: string;
   skip?: number;
   limit?: number;
 }) {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-
-    let query = supabase.from("appointments")
-      .select("*, pets(*), users!appointments_vet_id_fkey(*), pet_owners!appointments_owner_id_fkey(*)", { count: "exact" })
-      .eq("clinic_id", clinicId).eq("is_deleted", false);
-
-    if (params?.date_from) query = query.gte("appointment_date", params.date_from);
-    if (params?.date_to) query = query.lte("appointment_date", params.date_to);
-
-    query = query.order("appointment_date", { ascending: false }).order("appointment_time", { ascending: false });
-    const skip = params?.skip ?? 0;
-    const limit = params?.limit ?? 50;
-    query = query.range(skip, skip + limit - 1);
-
-    const { data, count, error } = await query;
-    if (error) throw error;
-    return { data: (data || []).map(mapAppointment), total: count ?? 0 };
-  } catch (err) {
-    console.warn("[Appointments] Supabase failed, using mock data", err);
-    return { data: [...mockAppointments], total: mockAppointments.length };
-  }
+  const res = await api.get<{ data: any[]; total: number }>(
+    `/appointments${buildQuery(params)}`
+  );
+  return { data: (res.data || []).map(mapAppointment), total: res.total ?? 0 };
 }
 
 export async function getAppointment(id: string): Promise<Appointment> {
-  try {
-    const clinicId = getClinicId();
-    const { data, error } = await supabase.from("appointments")
-      .select("*, pets(*), users!appointments_vet_id_fkey(*), pet_owners!appointments_owner_id_fkey(*)")
-      .eq("id", id).eq("clinic_id", clinicId).eq("is_deleted", false).single();
-    if (error) throw error;
-    return mapAppointment(data);
-  } catch (err) {
-    console.warn("[Appointment] Supabase failed, using mock data", err);
-    const found = mockAppointments.find((a) => a.id === id);
-    if (!found) throw new Error("Appointment not found");
-    return found;
-  }
+  return mapAppointment(await api.get<any>(`/appointments/${id}`));
 }
 
 export async function createAppointment(data: Partial<Appointment>): Promise<Appointment> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-
-    // We need owner_id. If not provided, look it up from the pet.
-    let ownerId = (data as any).owner_id;
-    if (!ownerId && data.pet_id) {
-      const { data: pet } = await supabase.from("pets").select("owner_id").eq("id", data.pet_id).single();
-      ownerId = pet?.owner_id;
-    }
-
-    const { data: row, error } = await supabase.from("appointments").insert({
-      clinic_id: clinicId,
-      pet_id: data.pet_id || "",
-      owner_id: ownerId || "",
-      vet_id: data.vet_id || null,
-      appointment_date: data.date || "",
-      appointment_time: data.time || "",
-      reason: data.reason || "",
-      notes: data.notes || null,
-      status: (data.status === "no-show" ? "no_show" : data.status) || "scheduled",
-    }).select().single();
-    if (error) throw error;
-    return mapAppointment(row);
-  } catch (err) {
-    console.warn("[CreateAppointment] Supabase failed, using mock", err);
-    return {
-      id: `apt-${Date.now()}`, pet_id: data.pet_id || "", vet_id: data.vet_id || "",
-      date: data.date || "", time: data.time || "", reason: data.reason || "",
-      notes: data.notes, status: "scheduled",
-      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-    };
+  // Resolve owner_id from pet if not provided
+  let ownerId = (data as any).owner_id;
+  if (!ownerId && data.pet_id) {
+    const pet = await api.get<any>(`/pets/${data.pet_id}`);
+    ownerId = pet?.owner_id;
   }
+  const status = data.status === "no-show" ? "no_show" : data.status || "scheduled";
+  const payload: any = {
+    pet_id: data.pet_id || "",
+    owner_id: ownerId || "",
+    vet_id: data.vet_id || null,
+    appointment_date: data.date || "",
+    appointment_time: data.time || "",
+    reason: data.reason || "",
+    notes: data.notes || null,
+    status,
+  };
+  return mapAppointment(await api.post<any>("/appointments", payload));
 }
 
-export async function updateAppointment(id: string, data: Partial<Appointment>): Promise<Appointment> {
-  try {
-    const updateData: any = {};
-    if (data.date !== undefined) updateData.appointment_date = data.date;
-    if (data.time !== undefined) updateData.appointment_time = data.time;
-    if (data.pet_id !== undefined) updateData.pet_id = data.pet_id;
-    if (data.vet_id !== undefined) updateData.vet_id = data.vet_id;
-    if (data.reason !== undefined) updateData.reason = data.reason;
-    if (data.notes !== undefined) updateData.notes = data.notes;
-    if (data.status !== undefined) updateData.status = data.status === "no-show" ? "no_show" : data.status;
-    if ((data as any).owner_id !== undefined) updateData.owner_id = (data as any).owner_id;
-
-    const { data: row, error } = await supabase.from("appointments")
-      .update(updateData).eq("id", id).select().single();
-    if (error) throw error;
-    return mapAppointment(row);
-  } catch (err) {
-    console.warn("[UpdateAppointment] Supabase failed, using mock", err);
-    const existing = mockAppointments.find((a) => a.id === id);
-    return { ...(existing || {}), ...data, id, updated_at: new Date().toISOString() } as Appointment;
-  }
+export async function updateAppointment(
+  id: string,
+  data: Partial<Appointment>
+): Promise<Appointment> {
+  const payload: any = {};
+  if (data.date !== undefined) payload.appointment_date = data.date;
+  if (data.time !== undefined) payload.appointment_time = data.time;
+  if (data.pet_id !== undefined) payload.pet_id = data.pet_id;
+  if (data.vet_id !== undefined) payload.vet_id = data.vet_id;
+  if (data.reason !== undefined) payload.reason = data.reason;
+  if (data.notes !== undefined) payload.notes = data.notes;
+  if (data.status !== undefined)
+    payload.status = data.status === "no-show" ? "no_show" : data.status;
+  if ((data as any).owner_id !== undefined) payload.owner_id = (data as any).owner_id;
+  return mapAppointment(await api.put<any>(`/appointments/${id}`, payload));
 }
 
 export async function deleteAppointment(id: string): Promise<void> {
-  try {
-    const { error } = await supabase.from("appointments")
-      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
-    if (error) throw error;
-  } catch (err) {
-    console.warn("[DeleteAppointment] Supabase failed", err);
-  }
+  await api.delete(`/appointments/${id}`);
 }
 
 // ─── Inventory ────────────────────────────────────────────────────────────────
@@ -551,393 +313,177 @@ export async function getInventory(params?: {
   skip?: number;
   limit?: number;
 }) {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-
-    let query = supabase.from("inventory").select("*", { count: "exact" })
-      .eq("clinic_id", clinicId).eq("is_deleted", false);
-
-    if (params?.search) {
-      const s = `%${params.search}%`;
-      query = query.or(`item_name.ilike.${s},item_type.ilike.${s}`);
-    }
-    if (params?.item_type) query = query.eq("item_type", params.item_type);
-
-    query = query.order("created_at", { ascending: false });
-    const skip = params?.skip ?? 0;
-    const limit = params?.limit ?? 50;
-    query = query.range(skip, skip + limit - 1);
-
-    const { data, count, error } = await query;
-    if (error) throw error;
-
-    let items = (data || []).map(mapInventoryItem);
-    if (params?.low_stock_only) {
-      items = items.filter((i) => i.status === "low" || i.status === "out");
-    }
-
-    return { data: items, total: params?.low_stock_only ? items.length : (count ?? 0) };
-  } catch (err) {
-    console.warn("[Inventory] Supabase failed, using mock data", err);
-    let filtered = [...mockInventory];
-    if (params?.search) {
-      const q = params.search.toLowerCase();
-      filtered = filtered.filter((i) => i.name.toLowerCase().includes(q) || i.category.toLowerCase().includes(q));
-    }
-    if (params?.low_stock_only) filtered = filtered.filter((i) => i.status === "low" || i.status === "out");
-    const skip = params?.skip ?? 0;
-    const limit = params?.limit ?? filtered.length;
-    return { data: filtered.slice(skip, skip + limit), total: filtered.length };
-  }
+  const res = await api.get<{ data: any[]; total: number }>(
+    `/inventory${buildQuery(params)}`
+  );
+  return { data: (res.data || []).map(mapInventoryItem), total: res.total ?? 0 };
 }
 
 export async function getInventoryItem(id: string): Promise<InventoryItem> {
-  try {
-    const clinicId = getClinicId();
-    const { data, error } = await supabase.from("inventory").select("*")
-      .eq("id", id).eq("clinic_id", clinicId).eq("is_deleted", false).single();
-    if (error) throw error;
-    return mapInventoryItem(data);
-  } catch (err) {
-    console.warn("[InventoryItem] Supabase failed, using mock data", err);
-    const found = mockInventory.find((i) => i.id === id);
-    if (!found) throw new Error("Inventory item not found");
-    return found;
-  }
+  return mapInventoryItem(await api.get<any>(`/inventory/${id}`));
 }
 
-export async function createInventoryItem(data: Partial<InventoryItem>): Promise<InventoryItem> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-    const { data: row, error } = await supabase.from("inventory").insert({
-      clinic_id: clinicId,
-      item_name: data.name || "",
-      item_type: data.category || "Other",
-      quantity: data.quantity ?? 0,
-      low_stock_threshold: data.reorder_level ?? 10,
-      unit: (data as any).unit || null,
-      cost_per_unit: data.unit_price ?? null,
-      supplier: data.supplier || null,
-    }).select().single();
-    if (error) throw error;
-    return mapInventoryItem(row);
-  } catch (err) {
-    console.warn("[CreateInventory] Supabase failed, using mock", err);
-    const qty = data.quantity ?? 0;
-    const reorder = data.reorder_level ?? 0;
-    const status: "ok" | "low" | "out" = qty === 0 ? "out" : qty <= reorder ? "low" : "ok";
-    return {
-      id: `item-${Date.now()}`, name: data.name || "", category: data.category || "Other",
-      quantity: qty, reorder_level: reorder, unit_price: data.unit_price, supplier: data.supplier,
-      expiry_date: data.expiry_date, status,
-      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-    };
-  }
+export async function createInventoryItem(
+  data: Partial<InventoryItem>
+): Promise<InventoryItem> {
+  const payload: any = {
+    item_name: data.name || "",
+    item_type: data.category || "Other",
+    quantity: data.quantity ?? 0,
+    low_stock_threshold: data.reorder_level ?? 10,
+    unit: (data as any).unit || null,
+    cost_per_unit: data.unit_price ?? null,
+    supplier: data.supplier || null,
+  };
+  return mapInventoryItem(await api.post<any>("/inventory", payload));
 }
 
-export async function updateInventoryItem(id: string, data: Partial<InventoryItem>): Promise<InventoryItem> {
-  try {
-    const updateData: any = {};
-    if (data.name !== undefined) updateData.item_name = data.name;
-    if (data.category !== undefined) updateData.item_type = data.category;
-    if (data.quantity !== undefined) updateData.quantity = data.quantity;
-    if (data.reorder_level !== undefined) updateData.low_stock_threshold = data.reorder_level;
-    if (data.unit_price !== undefined) updateData.cost_per_unit = data.unit_price;
-    if (data.supplier !== undefined) updateData.supplier = data.supplier;
-
-    const { data: row, error } = await supabase.from("inventory")
-      .update(updateData).eq("id", id).select().single();
-    if (error) throw error;
-    return mapInventoryItem(row);
-  } catch (err) {
-    console.warn("[UpdateInventory] Supabase failed, using mock", err);
-    const existing = mockInventory.find((i) => i.id === id);
-    const merged = { ...(existing || {}), ...data, id };
-    const qty = merged.quantity ?? 0;
-    const reorder = merged.reorder_level ?? 0;
-    merged.status = qty === 0 ? "out" : qty <= reorder ? "low" : "ok";
-    merged.updated_at = new Date().toISOString();
-    return merged as InventoryItem;
-  }
+export async function updateInventoryItem(
+  id: string,
+  data: Partial<InventoryItem>
+): Promise<InventoryItem> {
+  const payload: any = {};
+  if (data.name !== undefined) payload.item_name = data.name;
+  if (data.category !== undefined) payload.item_type = data.category;
+  if (data.quantity !== undefined) payload.quantity = data.quantity;
+  if (data.reorder_level !== undefined) payload.low_stock_threshold = data.reorder_level;
+  if (data.unit_price !== undefined) payload.cost_per_unit = data.unit_price;
+  if (data.supplier !== undefined) payload.supplier = data.supplier;
+  return mapInventoryItem(await api.put<any>(`/inventory/${id}`, payload));
 }
 
 export async function deleteInventoryItem(id: string): Promise<void> {
-  try {
-    const { error } = await supabase.from("inventory")
-      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
-    if (error) throw error;
-  } catch (err) {
-    console.warn("[DeleteInventory] Supabase failed", err);
-  }
+  await api.delete(`/inventory/${id}`);
 }
 
 // ─── Invoices ─────────────────────────────────────────────────────────────────
 
 export async function getInvoices(params?: { skip?: number; limit?: number }) {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-
-    let query = supabase.from("invoices")
-      .select("*, pets(*), pet_owners!invoices_owner_id_fkey(*)", { count: "exact" })
-      .eq("clinic_id", clinicId).eq("is_deleted", false);
-
-    query = query.order("created_at", { ascending: false });
-    const skip = params?.skip ?? 0;
-    const limit = params?.limit ?? 50;
-    query = query.range(skip, skip + limit - 1);
-
-    const { data, count, error } = await query;
-    if (error) throw error;
-    return { data: (data || []).map(mapInvoice), total: count ?? 0 };
-  } catch (err) {
-    console.warn("[Invoices] Supabase failed, using mock data", err);
-    return { data: [...mockInvoices], total: mockInvoices.length };
-  }
+  const res = await api.get<{ data: any[]; total: number }>(
+    `/invoices${buildQuery(params)}`
+  );
+  return { data: (res.data || []).map(mapInvoice), total: res.total ?? 0 };
 }
 
 export async function getInvoice(id: string): Promise<Invoice> {
-  try {
-    const clinicId = getClinicId();
-    const { data, error } = await supabase.from("invoices")
-      .select("*, pets(*), pet_owners!invoices_owner_id_fkey(*)")
-      .eq("id", id).eq("clinic_id", clinicId).eq("is_deleted", false).single();
-    if (error) throw error;
-    return mapInvoice(data);
-  } catch (err) {
-    console.warn("[Invoice] Supabase failed, using mock data", err);
-    const found = mockInvoices.find((i) => i.id === id);
-    if (!found) throw new Error("Invoice not found");
-    return found;
-  }
+  return mapInvoice(await api.get<any>(`/invoices/${id}`));
 }
 
 export async function createInvoice(data: Partial<Invoice>): Promise<Invoice> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-    const { data: row, error } = await supabase.from("invoices").insert({
-      clinic_id: clinicId,
-      invoice_number: data.invoice_number || `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`,
-      pet_id: data.pet_id || "",
-      owner_id: data.owner_id || "",
-      amount: data.subtotal ?? data.total ?? 0,
-      tax_amount: 0,
-      total_amount: data.total ?? 0,
-      discount: data.discount ?? 0,
-      line_items: data.line_items || [],
-      status: data.status || "pending",
-      due_date: data.due_date || null,
-      issue_date: new Date().toISOString().split("T")[0],
-      notes: (data as any).notes || null,
-    } as any).select().single();
-    if (error) throw error;
-    return mapInvoice(row);
-  } catch (err) {
-    console.warn("[CreateInvoice] Supabase failed, using mock", err);
-    return {
-      id: `inv-${Date.now()}`,
-      invoice_number: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`,
-      pet_id: data.pet_id || "", owner_id: data.owner_id || "",
-      line_items: data.line_items || [], subtotal: data.subtotal || 0,
-      discount: data.discount, total: data.total || 0, status: "pending",
-      due_date: data.due_date || "",
-      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-    };
-  }
+  const payload: any = {
+    owner_id: data.owner_id || "",
+    pet_id: data.pet_id || "",
+    amount: data.subtotal ?? data.total ?? 0,
+    tax_amount: 0,
+    total_amount: data.total ?? 0,
+    due_date: data.due_date || null,
+    issue_date: new Date().toISOString().split("T")[0],
+    notes: (data as any).notes || null,
+    status: data.status || "pending",
+  };
+  return mapInvoice(await api.post<any>("/invoices", payload));
 }
 
 export async function updateInvoice(id: string, data: Partial<Invoice>): Promise<Invoice> {
-  try {
-    const updateData: any = {};
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.total !== undefined) updateData.total_amount = data.total;
-    if (data.subtotal !== undefined) updateData.amount = data.subtotal;
-    if (data.due_date !== undefined) updateData.due_date = data.due_date;
-    if (data.discount !== undefined) updateData.discount = data.discount;
-    if (data.line_items !== undefined) updateData.line_items = data.line_items;
-    if ((data as any).notes !== undefined) updateData.notes = (data as any).notes;
-    if ((data as any).payment_method !== undefined) updateData.notes = (data as any).payment_method;
+  const payload: any = {};
+  if (data.status !== undefined) payload.status = data.status;
+  if (data.total !== undefined) payload.total_amount = data.total;
+  if (data.subtotal !== undefined) payload.amount = data.subtotal;
+  if (data.due_date !== undefined) payload.due_date = data.due_date;
+  if ((data as any).notes !== undefined) payload.notes = (data as any).notes;
+  return mapInvoice(await api.put<any>(`/invoices/${id}`, payload));
+}
 
-    const { data: row, error } = await supabase.from("invoices")
-      .update(updateData as any).eq("id", id).select().single();
-    if (error) throw error;
-    return mapInvoice(row);
-  } catch (err) {
-    console.warn("[UpdateInvoice] Supabase failed, using mock", err);
-    const existing = mockInvoices.find((i) => i.id === id);
-    return { ...(existing || {}), ...data, id, updated_at: new Date().toISOString() } as Invoice;
-  }
+export async function deleteInvoice(id: string): Promise<void> {
+  await api.delete(`/invoices/${id}`);
 }
 
 // ─── Staff ────────────────────────────────────────────────────────────────────
 
 export async function getStaff(params?: { skip?: number; limit?: number }) {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-
-    let query = supabase.from("users").select("*", { count: "exact" })
-      .eq("clinic_id", clinicId).eq("is_deleted", false);
-
-    query = query.order("created_at", { ascending: false });
-    const skip = params?.skip ?? 0;
-    const limit = params?.limit ?? 50;
-    query = query.range(skip, skip + limit - 1);
-
-    const { data, count, error } = await query;
-    if (error) throw error;
-    return { data: (data || []).map(mapUser), total: count ?? 0 };
-  } catch (err) {
-    console.warn("[Staff] Supabase failed, using mock data", err);
-    return { data: [...mockUsers], total: mockUsers.length };
-  }
+  const res = await api.get<{ data: any[]; total: number }>(`/staff${buildQuery(params)}`);
+  return { data: (res.data || []).map(mapUser), total: res.total ?? 0 };
 }
 
 export async function getStaffMember(id: string): Promise<User> {
-  try {
-    const clinicId = getClinicId();
-    const { data, error } = await supabase.from("users").select("*")
-      .eq("id", id).eq("clinic_id", clinicId).eq("is_deleted", false).single();
-    if (error) throw error;
-    return mapUser(data);
-  } catch (err) {
-    console.warn("[StaffMember] Supabase failed, using mock data", err);
-    const found = mockUsers.find((u) => u.id === id);
-    if (!found) throw new Error("Staff member not found");
-    return found;
-  }
+  return mapUser(await api.get<any>(`/staff/${id}`));
 }
 
 export async function createStaff(data: Partial<User>): Promise<User> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-
-    // Hash a default password
-    const defaultPassword = "changeme123";
-    const passwordHash = await bcrypt.hash(defaultPassword, 10);
-
-    const { data: row, error } = await supabase.from("users").insert({
-      clinic_id: clinicId,
-      name: data.full_name || "",
-      email: data.email || "",
-      role: data.role || "staff",
-      phone: data.phone || null,
-      password_hash: passwordHash,
-      is_active: true,
-      specialties: data.specialties || [],
-    }).select().single();
-    if (error) throw error;
-    return mapUser(row);
-  } catch (err) {
-    console.warn("[CreateStaff] Supabase failed, using mock", err);
-    return {
-      id: `staff-${Date.now()}`, full_name: data.full_name || "", email: data.email || "",
-      role: data.role || "staff", phone: data.phone, specialties: data.specialties,
-      is_active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-    };
-  }
+  const payload: any = {
+    name: data.full_name || "",
+    email: data.email || "",
+    role: data.role || "staff",
+    phone: data.phone || null,
+    password: (data as any).password || "changeme123",
+  };
+  return mapUser(await api.post<any>("/staff", payload));
 }
 
 export async function updateStaff(id: string, data: Partial<User>): Promise<User> {
-  try {
-    const updateData: any = {};
-    if (data.full_name !== undefined) updateData.name = data.full_name;
-    if (data.email !== undefined) updateData.email = data.email;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.role !== undefined) updateData.role = data.role;
-    if (data.is_active !== undefined) updateData.is_active = data.is_active;
-    if (data.specialties !== undefined) updateData.specialties = data.specialties;
-
-    const { data: row, error } = await supabase.from("users")
-      .update(updateData).eq("id", id).select().single();
-    if (error) throw error;
-    return mapUser(row);
-  } catch (err) {
-    console.warn("[UpdateStaff] Supabase failed, using mock", err);
-    const existing = mockUsers.find((u) => u.id === id);
-    return { ...(existing || {}), ...data, id, updated_at: new Date().toISOString() } as User;
-  }
+  const payload: any = {};
+  if (data.full_name !== undefined) payload.name = data.full_name;
+  if (data.email !== undefined) payload.email = data.email;
+  if (data.phone !== undefined) payload.phone = data.phone;
+  if (data.role !== undefined) payload.role = data.role;
+  if (data.is_active !== undefined) payload.is_active = data.is_active;
+  return mapUser(await api.put<any>(`/staff/${id}`, payload));
 }
 
 export async function deleteStaff(id: string): Promise<void> {
-  try {
-    const { error } = await supabase.from("users")
-      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
-    if (error) throw error;
-  } catch (err) {
-    console.warn("[DeleteStaff] Supabase failed", err);
-  }
+  await api.delete(`/staff/${id}`);
 }
 
-// ─── Services ─────────────────────────────────────────────────────────────────
+// ─── Services / Vaccinations / Pet Documents ─────────────────────────────────
+// These resources do not yet have backend routes. They return empty results so
+// pages render gracefully; mutations throw a clear "not implemented" error.
 
-export async function getServices() {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-    const { data, error } = await supabase.from("services").select("*")
-      .eq("clinic_id", clinicId).eq("is_deleted", false)
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    return data || [];
-  } catch (err) {
-    console.warn("[Services] Supabase failed, returning empty", err);
-    return [];
-  }
+const NOT_IMPLEMENTED = new Error("This feature is not yet available on the backend.");
+
+// ─── Services catalog ─────────────────────────────────────────────────────────
+
+function mapService(s: any) {
+  return {
+    id: s.id,
+    clinic_id: s.clinic_id,
+    name: s.name,
+    category: s.category,
+    price: Number(s.price ?? 0),
+    description: s.description || "",
+    is_active: !!s.is_active,
+    created_at: s.created_at,
+    updated_at: s.updated_at,
+  };
+}
+
+export async function getServices(): Promise<any[]> {
+  const res = await api.get<{ data: any[]; total: number }>("/services?limit=200");
+  return (res.data || []).map(mapService);
 }
 
 export async function createService(data: any): Promise<any> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-    const { data: row, error } = await supabase.from("services").insert({
-      clinic_id: clinicId,
-      name: data.name || "",
-      category: data.category || "other",
-      price: data.price ?? 0,
-      description: data.description || null,
-      is_active: data.is_active ?? true,
-    }).select().single();
-    if (error) throw error;
-    return row;
-  } catch (err) {
-    console.warn("[CreateService] Supabase failed", err);
-    throw err;
-  }
+  const payload = {
+    name: data.name,
+    category: data.category,
+    price: Number(data.price ?? 0),
+    description: data.description ?? null,
+    is_active: data.is_active ?? true,
+  };
+  return mapService(await api.post<any>("/services", payload));
 }
 
 export async function updateService(id: string, data: any): Promise<any> {
-  try {
-    const updateData: any = {};
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.category !== undefined) updateData.category = data.category;
-    if (data.price !== undefined) updateData.price = data.price;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.is_active !== undefined) updateData.is_active = data.is_active;
-
-    const { data: row, error } = await supabase.from("services")
-      .update(updateData).eq("id", id).select().single();
-    if (error) throw error;
-    return row;
-  } catch (err) {
-    console.warn("[UpdateService] Supabase failed", err);
-    throw err;
-  }
+  const payload: any = {};
+  if (data.name !== undefined) payload.name = data.name;
+  if (data.category !== undefined) payload.category = data.category;
+  if (data.price !== undefined) payload.price = Number(data.price);
+  if (data.description !== undefined) payload.description = data.description;
+  if (data.is_active !== undefined) payload.is_active = data.is_active;
+  return mapService(await api.put<any>(`/services/${id}`, payload));
 }
 
 export async function deleteService(id: string): Promise<void> {
-  try {
-    const { error } = await supabase.from("services")
-      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
-    if (error) throw error;
-  } catch (err) {
-    console.warn("[DeleteService] Supabase failed", err);
-    throw err;
-  }
+  await api.delete(`/services/${id}`);
 }
 
 // ─── Medical Records ──────────────────────────────────────────────────────────
@@ -945,7 +491,11 @@ export async function deleteService(id: string): Promise<void> {
 export function mapMedicalRecord(r: any): MedicalRecord {
   let notesObj: any = {};
   if (r.notes && typeof r.notes === "string") {
-    try { notesObj = JSON.parse(r.notes); } catch (e) { console.warn("[mapMedicalRecord] Failed to parse notes JSON", e); }
+    try {
+      notesObj = JSON.parse(r.notes);
+    } catch {
+      /* ignore */
+    }
   } else if (r.notes && typeof r.notes === "object") {
     notesObj = r.notes;
   }
@@ -953,7 +503,6 @@ export function mapMedicalRecord(r: any): MedicalRecord {
     id: r.id,
     pet_id: r.pet_id,
     vet_id: r.vet_id,
-    vet: r.users ? mapUser(r.users) : undefined,
     appointment_id: r.appointment_id,
     visit_date: r.record_date || r.visit_date || "",
     chief_complaint: notesObj.chief_complaint || r.chief_complaint || r.diagnosis || "",
@@ -966,10 +515,13 @@ export function mapMedicalRecord(r: any): MedicalRecord {
     heart_rate_bpm: notesObj.vitals?.heart_rate_bpm ?? r.heart_rate_bpm,
     respiratory_rate: notesObj.vitals?.respiratory_rate ?? r.respiratory_rate,
     body_condition_score: notesObj.vitals?.body_condition_score ?? r.body_condition_score,
-    physical_exam_findings: notesObj.physical_exam_findings || r.physical_exam_findings || "",
+    physical_exam_findings:
+      notesObj.physical_exam_findings || r.physical_exam_findings || "",
     diagnostic_results: notesObj.diagnostic_results || r.diagnostic_results || "",
-    primary_diagnosis: r.primary_diagnosis || notesObj.primary_diagnosis || r.diagnosis || "",
-    differential_diagnoses: notesObj.differential_diagnoses || r.differential_diagnoses || "",
+    primary_diagnosis:
+      r.primary_diagnosis || notesObj.primary_diagnosis || r.diagnosis || "",
+    differential_diagnoses:
+      notesObj.differential_diagnoses || r.differential_diagnoses || "",
     severity: r.severity || notesObj.severity || "mild",
     prescriptions: (() => { const raw = notesObj.prescriptions || r.prescriptions_json || r.prescriptions || []; if (typeof raw === "string") { try { return JSON.parse(raw); } catch { return []; } } return Array.isArray(raw) ? raw : []; })(),
     procedures_performed: notesObj.procedures_performed || r.procedures_performed || r.treatment || "",
@@ -981,250 +533,67 @@ export function mapMedicalRecord(r: any): MedicalRecord {
   };
 }
 
-export async function getMedicalRecords(params?: { pet_id?: string }): Promise<MedicalRecord[]> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-    let query = supabase.from("medical_records")
-      .select("*, users!medical_records_vet_id_fkey(*)")
-      .eq("clinic_id", clinicId).eq("is_deleted", false);
-    if (params?.pet_id) query = query.eq("pet_id", params.pet_id);
-    query = query.order("record_date", { ascending: false });
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []).map(mapMedicalRecord);
-  } catch (err) {
-    console.warn("[MedicalRecords] Supabase failed, using mock data", err);
-    return params?.pet_id
-      ? mockMedicalRecords.filter((r) => r.pet_id === params.pet_id)
-      : [...mockMedicalRecords];
-  }
+export async function getMedicalRecords(params?: {
+  pet_id?: string;
+}): Promise<MedicalRecord[]> {
+  const res = await api.get<{ data: any[] }>(
+    `/medical-records${buildQuery(params)}`
+  );
+  return (res.data || []).map(mapMedicalRecord);
 }
 
 export async function createMedicalRecord(data: any): Promise<any> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-    const { data: row, error } = await supabase.from("medical_records").insert({
-      clinic_id: clinicId,
-      pet_id: data.pet_id || "",
-      vet_id: data.vet_id || "",
-      appointment_id: data.appointment_id || null,
-      record_date: data.visit_date || new Date().toISOString().split("T")[0],
-      diagnosis: data.primary_diagnosis || "",
-      treatment: data.procedures_performed || "",
-      chief_complaint: data.chief_complaint || null,
-      symptoms: data.symptoms || null,
-      duration_onset: data.duration_onset || null,
-      appetite_behavior: data.appetite_behavior || null,
-      prior_treatments: data.prior_treatments || null,
-      weight_kg: data.weight_kg ? Number(data.weight_kg) : null,
-      temperature_f: data.temperature_f ? Number(data.temperature_f) : null,
-      heart_rate_bpm: data.heart_rate_bpm ? Number(data.heart_rate_bpm) : null,
-      respiratory_rate: data.respiratory_rate ? Number(data.respiratory_rate) : null,
-      body_condition_score: data.body_condition_score ? Number(data.body_condition_score) : null,
-      physical_exam_findings: data.physical_exam_findings || null,
-      diagnostic_results: data.diagnostic_results || null,
-      primary_diagnosis: data.primary_diagnosis || null,
-      differential_diagnoses: data.differential_diagnoses || null,
-      severity: data.severity || "mild",
-      prescriptions_json: data.prescriptions || [],
-      procedures_performed: data.procedures_performed || null,
-      follow_up_instructions: data.follow_up_instructions || null,
-      next_appointment_recommendation: data.next_appointment_recommendation || null,
-      follow_up_json: data.follow_up || null,
-    }).select().single();
-    if (error) throw error;
-    return row;
-  } catch (err) {
-    console.warn("[CreateMedicalRecord] Supabase failed", err);
-    throw err;
-  }
+  return api.post<any>("/medical-records", data);
+}
+
+export async function updateMedicalRecord(id: string, data: any): Promise<any> {
+  return mapMedicalRecord(await api.put<any>(`/medical-records/${id}`, data));
+}
+
+export async function deleteMedicalRecord(id: string): Promise<void> {
+  await api.delete(`/medical-records/${id}`);
 }
 
 // ─── Vaccinations ─────────────────────────────────────────────────────────────
 
-export async function getVaccinations(params?: { pet_id?: string }): Promise<any[]> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-    let query = supabase.from("vaccinations")
-      .select("*")
-      .eq("clinic_id", clinicId).eq("is_deleted", false);
-    if (params?.pet_id) query = query.eq("pet_id", params.pet_id);
-    query = query.order("date_administered", { ascending: false });
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
-  } catch (err) {
-    console.warn("[Vaccinations] Supabase failed, using mock data", err);
-    return params?.pet_id
-      ? mockVaccinations.filter((v) => v.pet_id === params.pet_id)
-      : [...mockVaccinations];
-  }
+export async function getVaccinations(_params?: { pet_id?: string }): Promise<any[]> {
+  return [];
 }
-
-// ─── Update Medical Record ────────────────────────────────────────────────────
-
-export async function updateMedicalRecord(id: string, data: any): Promise<any> {
-  try {
-    const updateData: any = {};
-    const fields = [
-      "chief_complaint", "symptoms", "duration_onset", "appetite_behavior",
-      "prior_treatments", "physical_exam_findings", "diagnostic_results",
-      "primary_diagnosis", "differential_diagnoses", "severity",
-      "procedures_performed", "follow_up_instructions", "next_appointment_recommendation",
-    ];
-    fields.forEach((f) => { if (data[f] !== undefined) updateData[f] = data[f] || null; });
-    if (data.primary_diagnosis) updateData.diagnosis = data.primary_diagnosis;
-    if (data.procedures_performed) updateData.treatment = data.procedures_performed;
-    if (data.weight_kg !== undefined) updateData.weight_kg = data.weight_kg ? Number(data.weight_kg) : null;
-    if (data.temperature_f !== undefined) updateData.temperature_f = data.temperature_f ? Number(data.temperature_f) : null;
-    if (data.heart_rate_bpm !== undefined) updateData.heart_rate_bpm = data.heart_rate_bpm ? Number(data.heart_rate_bpm) : null;
-    if (data.respiratory_rate !== undefined) updateData.respiratory_rate = data.respiratory_rate ? Number(data.respiratory_rate) : null;
-    if (data.body_condition_score !== undefined) updateData.body_condition_score = data.body_condition_score ? Number(data.body_condition_score) : null;
-    if (data.prescriptions !== undefined) updateData.prescriptions_json = data.prescriptions;
-    if (data.follow_up !== undefined) updateData.follow_up_json = data.follow_up;
-
-    const { data: row, error } = await supabase.from("medical_records")
-      .update(updateData).eq("id", id).select().single();
-    if (error) throw error;
-    return mapMedicalRecord(row);
-  } catch (err) {
-    console.error("[UpdateMedicalRecord] Supabase failed", err);
-    throw err;
-  }
+export async function createVaccination(_data: any): Promise<any> {
+  throw NOT_IMPLEMENTED;
 }
-
-export async function deleteMedicalRecord(id: string): Promise<void> {
-  try {
-    const { error } = await supabase.from("medical_records")
-      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
-    if (error) throw error;
-  } catch (err) {
-    console.error("[DeleteMedicalRecord] Supabase failed", err);
-    throw err;
-  }
+export async function updateVaccination(_id: string, _data: any): Promise<any> {
+  throw NOT_IMPLEMENTED;
 }
-
-// ─── Delete Invoice ───────────────────────────────────────────────────────────
-
-export async function deleteInvoice(id: string): Promise<void> {
-  try {
-    const { error } = await supabase.from("invoices")
-      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
-    if (error) throw error;
-  } catch (err) {
-    console.error("[DeleteInvoice] Supabase failed", err);
-    throw err;
-  }
-}
-
-// ─── Vaccination CRUD ─────────────────────────────────────────────────────────
-
-export async function createVaccination(data: any): Promise<any> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-    const { data: row, error } = await supabase.from("vaccinations").insert({
-      clinic_id: clinicId,
-      pet_id: data.pet_id || "",
-      vaccine_name: data.vaccine_name || "",
-      date_administered: data.date_administered || new Date().toISOString().split("T")[0],
-      next_due_date: data.next_due_date || null,
-      batch_number: data.batch_number || null,
-      administered_by_id: data.administered_by_id || null,
-      notes: data.notes || null,
-    }).select().single();
-    if (error) throw error;
-    return row;
-  } catch (err) {
-    console.error("[CreateVaccination] Supabase failed", err);
-    throw err;
-  }
-}
-
-export async function updateVaccination(id: string, data: any): Promise<any> {
-  try {
-    const updateData: any = {};
-    if (data.vaccine_name !== undefined) updateData.vaccine_name = data.vaccine_name;
-    if (data.date_administered !== undefined) updateData.date_administered = data.date_administered;
-    if (data.next_due_date !== undefined) updateData.next_due_date = data.next_due_date;
-    if (data.batch_number !== undefined) updateData.batch_number = data.batch_number;
-    if (data.administered_by_id !== undefined) updateData.administered_by_id = data.administered_by_id;
-    if (data.notes !== undefined) updateData.notes = data.notes;
-
-    const { data: row, error } = await supabase.from("vaccinations")
-      .update(updateData).eq("id", id).select().single();
-    if (error) throw error;
-    return row;
-  } catch (err) {
-    console.error("[UpdateVaccination] Supabase failed", err);
-    throw err;
-  }
-}
-
-export async function deleteVaccination(id: string): Promise<void> {
-  try {
-    const { error } = await supabase.from("vaccinations")
-      .update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
-    if (error) throw error;
-  } catch (err) {
-    console.error("[DeleteVaccination] Supabase failed", err);
-    throw err;
-  }
-}
-
-
-export async function uploadPetFile(file: File, petId: string): Promise<string> {
-  const ext = file.name.split(".").pop() || "bin";
-  const path = `${petId}/${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from("pet-files").upload(path, file);
-  if (error) throw error;
-  const { data } = supabase.storage.from("pet-files").getPublicUrl(path);
-  return data.publicUrl;
+export async function deleteVaccination(_id: string): Promise<void> {
+  throw NOT_IMPLEMENTED;
 }
 
 // ─── Pet Documents ────────────────────────────────────────────────────────────
 
-export async function getPetDocuments(petId: string): Promise<PetDocument[]> {
-  try {
-    const clinicId = getClinicId();
-    if (!clinicId) throw new Error("No clinic");
-    const { data, error } = await supabase.from("pet_documents")
-      .select("*")
-      .eq("clinic_id", clinicId)
-      .eq("pet_id", petId)
-      .eq("is_deleted", false)
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    return (data || []) as unknown as PetDocument[];
-  } catch (err) {
-    console.warn("[PetDocuments] Supabase failed", err);
-    return [];
+// Temporary photo upload: reads the file as a base64 data URL so we can persist
+// it directly on the pet record (no Supabase Storage bucket required yet).
+// Cap at ~2 MB to keep row size sane.
+export async function uploadPetFile(file: File, _petId: string): Promise<string> {
+  if (file.size > 2 * 1024 * 1024) {
+    throw new Error("Photo too large (max 2 MB). Please choose a smaller image.");
   }
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Failed to read image file"));
+    reader.readAsDataURL(file);
+  });
 }
 
-export async function createPetDocument(data: Partial<PetDocument>): Promise<PetDocument> {
-  const clinicId = getClinicId();
-  if (!clinicId) throw new Error("No clinic");
-  const { data: row, error } = await supabase.from("pet_documents").insert({
-    clinic_id: clinicId,
-    pet_id: data.pet_id || "",
-    file_name: data.file_name || "",
-    file_url: data.file_url || "",
-    file_type: data.file_type || null,
-    file_size_bytes: data.file_size_bytes || null,
-    category: data.category || "other",
-    notes: data.notes || null,
-    uploaded_by_id: data.uploaded_by_id || null,
-  } as any).select().single();
-  if (error) throw error;
-  return row as unknown as PetDocument;
+export async function getPetDocuments(_petId: string): Promise<PetDocument[]> {
+  return [];
 }
 
-export async function deletePetDocument(id: string): Promise<void> {
-  const { error } = await supabase.from("pet_documents")
-    .update({ is_deleted: true, deleted_at: new Date().toISOString() } as any).eq("id", id);
-  if (error) throw error;
+export async function createPetDocument(_data: Partial<PetDocument>): Promise<PetDocument> {
+  throw NOT_IMPLEMENTED;
+}
+
+export async function deletePetDocument(_id: string): Promise<void> {
+  throw NOT_IMPLEMENTED;
 }

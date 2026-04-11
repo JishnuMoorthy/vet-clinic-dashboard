@@ -1,7 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import type { User, UserRole } from "@/types/api";
-import { supabase } from "@/lib/supabase";
-import bcrypt from "bcryptjs";
+import { api } from "@/lib/api";
 
 interface AuthContextType {
   user: User | null;
@@ -11,6 +10,33 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   hasRole: (roles: UserRole[]) => boolean;
+}
+
+interface BackendUser {
+  id: string;
+  clinic_id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  phone?: string | null;
+  is_active: boolean;
+  created_at: string;
+  specialties?: string[];
+}
+
+function mapBackendUser(u: BackendUser): User & { clinic_id: string } {
+  return {
+    id: u.id,
+    email: u.email,
+    full_name: u.name,
+    role: u.role,
+    phone: u.phone || undefined,
+    is_active: u.is_active ?? true,
+    clinic_id: u.clinic_id,
+    created_at: u.created_at || "",
+    updated_at: u.created_at || "",
+    specialties: u.specialties || [],
+  } as User & { clinic_id: string };
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -25,53 +51,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
   const [isLoading, setIsLoading] = useState(false);
 
+  // Validate stored token on mount; clear if invalid.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    api
+      .get<BackendUser>("/auth/me")
+      .then((u) => {
+        if (cancelled) return;
+        const mapped = mapBackendUser(u);
+        localStorage.setItem("auth_user", JSON.stringify(mapped));
+        setUser(mapped);
+      })
+      .catch(() => {
+        // 401 handling already clears storage in api client
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("email", email)
-        .eq("is_deleted", false)
-        .eq("is_active", true)
-        .maybeSingle();
+      const { access_token } = await api.post<{ access_token: string; token_type: string }>(
+        "/auth/login",
+        { email, password }
+      );
+      localStorage.setItem("auth_token", access_token);
+      setToken(access_token);
 
-      if (error) {
-        throw new Error("Unable to connect to the server. Please try again.");
-      }
-
-      if (!data) {
-        throw new Error("Invalid email or password");
-      }
-
-      // Verify password with bcrypt
-      const passwordValid = await bcrypt.compare(password, data.password_hash);
-      if (!passwordValid) throw new Error("Invalid email or password");
-
-      // Map DB user to frontend User type
-      const mappedUser: User & { clinic_id: string } = {
-        id: data.id,
-        email: data.email,
-        full_name: data.name,
-        role: data.role as UserRole,
-        phone: data.phone || undefined,
-        is_active: data.is_active ?? true,
-        clinic_id: data.clinic_id,
-        created_at: data.created_at || "",
-        updated_at: data.updated_at || "",
-      };
-
-      // Generate a simple session token
-      const sessionToken = `sb_${data.id}_${Date.now()}`;
-
-      localStorage.setItem("auth_token", sessionToken);
-      localStorage.setItem("auth_user", JSON.stringify(mappedUser));
-      setToken(sessionToken);
-      setUser(mappedUser);
+      const me = await api.get<BackendUser>("/auth/me");
+      const mapped = mapBackendUser(me);
+      localStorage.setItem("auth_user", JSON.stringify(mapped));
+      setUser(mapped);
     } catch (err: any) {
-      // Network errors
       if (err.message === "Failed to fetch" || err.message === "Load failed") {
         throw new Error("Unable to connect to the server. Please check your connection.");
+      }
+      if (err.message === "Unauthorized" || /401/.test(err.message)) {
+        throw new Error("Invalid email or password");
       }
       throw err;
     } finally {
@@ -80,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    api.post("/auth/logout", {}).catch(() => {});
     localStorage.removeItem("auth_token");
     localStorage.removeItem("auth_user");
     setToken(null);

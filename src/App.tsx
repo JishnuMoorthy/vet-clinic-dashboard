@@ -21,6 +21,7 @@ import AppointmentForm from "@/pages/appointments/AppointmentForm";
 import InvoicesList from "@/pages/billing/InvoicesList";
 import InvoiceDetail from "@/pages/billing/InvoiceDetail";
 import InvoiceForm from "@/pages/billing/InvoiceForm";
+import InvoicePrint from "@/pages/billing/InvoicePrint";
 import InventoryList from "@/pages/inventory/InventoryList";
 import InventoryForm from "@/pages/inventory/InventoryForm";
 import StaffList from "@/pages/staff/StaffList";
@@ -43,6 +44,8 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            {/* Print routes render outside AppLayout so sidebar/header are excluded from print. */}
+            <Route path="/billing/:id/print" element={<ProtectedRoute allowedRoles={["admin"]}><InvoicePrint /></ProtectedRoute>} />
             <Route
               element={
                 <ProtectedRoute>

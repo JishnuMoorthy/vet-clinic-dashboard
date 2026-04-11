@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search } from "lucide-react";
 
@@ -59,7 +60,14 @@ export default function PetsList() {
             <TableBody>
               {filtered.map((pet) => (
                 <TableRow key={pet.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/pets/${pet.id}`)}>
-                  <TableCell className="font-medium">{pet.name}</TableCell>
+                  <TableCell className="font-medium">
+                    {pet.name}
+                    {pet.info_complete === false && (
+                      <Badge variant="outline" className="ml-2 text-amber-600 border-amber-500/40">
+                        Complete Info
+                      </Badge>
+                    )}
+                  </TableCell>
                   <TableCell>{pet.species}</TableCell>
                   <TableCell>{pet.breed || "—"}</TableCell>
                   <TableCell>{pet.owner?.full_name || "—"}</TableCell>

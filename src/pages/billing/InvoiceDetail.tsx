@@ -82,7 +82,7 @@ export default function InvoiceDetail() {
         <Button variant="outline" size="sm" onClick={shareViaWhatsApp}>
           <MessageCircle className="mr-2 h-3 w-3" /> Share via WhatsApp
         </Button>
-        <Button variant="outline" size="sm" onClick={() => { window.print(); }} className="print:hidden">
+        <Button variant="outline" size="sm" onClick={() => navigate(`/billing/${inv.id}/print`)} className="print:hidden">
           <Printer className="mr-2 h-3 w-3" /> Print / Save PDF
         </Button>
         {inv.status === "pending" && (

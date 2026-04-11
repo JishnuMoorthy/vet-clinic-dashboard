@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { DemoBanner } from "@/components/DemoBanner";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function AppLayout() {
@@ -34,6 +35,7 @@ export function AppLayout() {
           </div>
         </main>
       </SidebarInset>
+      <FeedbackWidget />
     </SidebarProvider>
   );
 }

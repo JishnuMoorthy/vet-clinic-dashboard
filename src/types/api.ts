@@ -34,6 +34,7 @@ export interface Pet {
   owner_id: string;
   owner?: PetOwner;
   photo_url?: string;
+  info_complete?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +47,7 @@ export interface PetOwner {
   address?: string;
   pets_count?: number;
   last_visit?: string;
+  info_complete?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -54,6 +56,8 @@ export interface Appointment {
   id: string;
   pet_id: string;
   pet?: Pet;
+  owner_id?: string;
+  owner?: PetOwner;
   vet_id: string;
   vet?: User;
   date: string;

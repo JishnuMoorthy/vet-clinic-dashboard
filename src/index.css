@@ -2,34 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Mia VMS — Koernig-inspired warm palette. All colors HSL. */
+/* Mia VMS — Ivory / Organic / Apricot / Natural palette. All colors HSL.
+   Matches mia-vms-landing.vercel.app
+   Ivory   #EDE6D6 → 42 39% 88%   surface #F5F0E6 → 40 43% 93%
+   Organic #3F422E → 70 18% 22%   pale    #EDECE4 → 53 20% 91%
+   Apricot #D78B30 → 30 68% 52%
+   Natural #7A6B58 → 34 16% 41%   light   #B8A590 → 31 19% 64%
+   Border  #E0D5C0 → 39 34% 82%
+*/
 
 @layer base {
   :root {
-    /* Sustainable Linen #FAF3E1 → 43 76% 93% */
-    --background: 43 76% 93%;
-    /* Black Hole #222222 → 0 0% 13% */
-    --foreground: 0 0% 13%;
+    /* Ivory page background — #EDE6D6 */
+    --background: 42 39% 88%;
+    /* Deep organic foreground text — #3F422E */
+    --foreground: 70 18% 15%;
 
-    --card: 43 60% 96%;
-    --card-foreground: 0 0% 13%;
+    /* Lighter surface for cards — #F5F0E6 */
+    --card: 40 43% 93%;
+    --card-foreground: 70 18% 15%;
 
-    --popover: 43 60% 96%;
-    --popover-foreground: 0 0% 13%;
+    --popover: 40 43% 93%;
+    --popover-foreground: 70 18% 15%;
 
-    /* Electric Tangerine #FF6D1F → 21 100% 56% */
-    --primary: 21 100% 56%;
-    --primary-foreground: 0 0% 100%;
+    /* Apricot — primary CTA — #D78B30 */
+    --primary: 30 68% 52%;
+    --primary-foreground: 40 43% 97%;
 
-    /* Recycled Cotton #F5E7C6 → 39 72% 87% */
-    --secondary: 39 72% 87%;
-    --secondary-foreground: 0 0% 13%;
+    /* Natural dark — secondary — #7A6B58 */
+    --secondary: 34 16% 41%;
+    --secondary-foreground: 40 43% 93%;
 
-    --muted: 39 50% 90%;
-    --muted-foreground: 30 10% 40%;
+    /* Organic pale muted area — #EDECE4 */
+    --muted: 53 20% 91%;
+    --muted-foreground: 34 16% 41%;
 
-    --accent: 39 60% 90%;
-    --accent-foreground: 21 80% 35%;
+    /* Organic pale accent — #EDECE4 */
+    --accent: 53 20% 91%;
+    --accent-foreground: 70 18% 22%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
@@ -40,20 +50,22 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 39 40% 82%;
-    --input: 39 40% 82%;
-    --ring: 21 100% 56%;
+    /* Border #E0D5C0 */
+    --border: 39 34% 82%;
+    --input: 39 34% 85%;
+    --ring: 30 68% 52%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 13%;
-    --sidebar-foreground: 43 40% 85%;
-    --sidebar-primary: 21 100% 56%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 18%;
-    --sidebar-accent-foreground: 43 40% 90%;
-    --sidebar-border: 0 0% 20%;
-    --sidebar-ring: 21 100% 56%;
+    /* Sidebar — Organic body, Ivory text, Apricot active */
+    --sidebar-background: 70 18% 18%;
+    --sidebar-foreground: 40 43% 85%;
+    --sidebar-primary: 30 68% 52%;
+    --sidebar-primary-foreground: 40 43% 97%;
+    --sidebar-accent: 70 18% 26%;
+    --sidebar-accent-foreground: 40 43% 90%;
+    --sidebar-border: 70 18% 14%;
+    --sidebar-ring: 30 68% 52%;
   }
 
   .dark {
@@ -114,10 +126,17 @@
 }
 
 /* Print styles for invoices */
+@page { size: A4; margin: 15mm; }
+
 @media print {
   body { background: white !important; }
-  .print\\:hidden, nav, aside, header, .sidebar, [data-sidebar] { display: none !important; }
+  .print\:hidden, nav, aside, header, .sidebar, [data-sidebar] { display: none !important; }
   main { margin: 0 !important; padding: 0 !important; }
   .rounded-md { border-radius: 0 !important; }
   * { box-shadow: none !important; }
+  .invoice-sheet {
+    background: white !important;
+    color: #222 !important;
+    font-family: Georgia, "Times New Roman", serif;
+  }
 }

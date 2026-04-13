@@ -11,6 +11,7 @@ import {
   BarChart3,
   Stethoscope,
   ClipboardList,
+  Building2,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -48,6 +49,7 @@ export function AppSidebar() {
   const isAdmin = hasRole(["admin"]);
   const isVet = hasRole(["vet"]);
   const isVetOrAdmin = hasRole(["vet", "admin"]);
+  const isSuperAdmin = isAdmin && sessionStorage.getItem("super_admin") === "true";
 
   return (
     <Sidebar>
@@ -104,6 +106,31 @@ export function AppSidebar() {
                       <div className="flex flex-col">
                         <span className="text-sm">Today's Patients</span>
                         <span className="text-[10px] opacity-50 leading-tight">Today's patient queue</span>
+                      </div>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {isSuperAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Platform</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/onboard-clinic"
+                      className="flex items-center gap-2"
+                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                    >
+                      <Building2 className="h-4 w-4" />
+                      <div className="flex flex-col">
+                        <span className="text-sm">Onboard Clinic</span>
+                        <span className="text-[10px] opacity-50 leading-tight">Create trial clinics</span>
                       </div>
                     </NavLink>
                   </SidebarMenuButton>

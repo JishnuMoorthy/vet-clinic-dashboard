@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { PawPrint, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TrialTermsModal, useTrialTerms } from "@/components/TrialTermsModal";
+import { PinDialog } from "@/components/PinDialog";
 
 const QUICK_LOGINS = [
   { label: "Admin", email: "admin@miavet.com", password: "Admin@2026!", icon: "🛡️" },
@@ -18,6 +19,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showTerms, setShowTerms] = useState(false);
+  const [showPin, setShowPin] = useState(false);
   const { login, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -123,7 +125,7 @@ export default function Login() {
               variant="outline"
               className="w-full flex items-center justify-center gap-2 h-auto py-3"
               disabled={isLoading}
-              onClick={() => handleQuickLogin(QUICK_LOGINS[0].email, QUICK_LOGINS[0].password)}
+              onClick={() => setShowPin(true)}
             >
               <span className="text-lg">{QUICK_LOGINS[0].icon}</span>
               <span>Continue as Admin</span>
@@ -131,6 +133,14 @@ export default function Login() {
           </div>
         </CardContent>
       </Card>
+      <PinDialog
+        open={showPin}
+        onSuccess={() => {
+          setShowPin(false);
+          handleQuickLogin(QUICK_LOGINS[0].email, QUICK_LOGINS[0].password);
+        }}
+        onCancel={() => setShowPin(false)}
+      />
       <TrialTermsModal
         open={showTerms}
         onAccept={() => {

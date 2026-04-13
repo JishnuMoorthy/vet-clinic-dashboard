@@ -31,6 +31,7 @@ import ConsultationsList from "@/pages/consultation/ConsultationsList";
 import MedicalRecordForm from "@/pages/medical-records/MedicalRecordForm";
 import Settings from "@/pages/Settings";
 import ServicesCatalog from "@/pages/services/ServicesCatalog";
+import ClinicOnboarding from "@/pages/ClinicOnboarding";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -88,6 +89,8 @@ const App = () => (
               <Route path="/staff" element={<ProtectedRoute allowedRoles={["admin"]}><StaffList /></ProtectedRoute>} />
               <Route path="/staff/new" element={<ProtectedRoute allowedRoles={["admin"]}><StaffForm /></ProtectedRoute>} />
               <Route path="/staff/:id/edit" element={<ProtectedRoute allowedRoles={["admin"]}><StaffForm /></ProtectedRoute>} />
+              {/* Onboarding (super admin) */}
+              <Route path="/onboard-clinic" element={<ProtectedRoute allowedRoles={["admin"]}><ClinicOnboarding /></ProtectedRoute>} />
               {/* Settings */}
               <Route path="/settings" element={<Settings />} />
             </Route>

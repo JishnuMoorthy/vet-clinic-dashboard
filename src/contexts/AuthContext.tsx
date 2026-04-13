@@ -110,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     api.post("/auth/logout", {}).catch(() => {});
     localStorage.removeItem("auth_token");
     localStorage.removeItem("auth_user");
+    sessionStorage.removeItem("super_admin");
     setToken(null);
     setUser(null);
   }, []);

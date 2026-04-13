@@ -10,6 +10,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   hasRole: (roles: UserRole[]) => boolean;
+  refreshUser: () => Promise<void>;
 }
 
 interface BackendUser {
@@ -64,7 +65,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(mapped);
       })
       .catch(() => {
-        // 401 handling already clears storage in api client
+        // Token is invalid/expired — clear state so user sees login
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("auth_user");
+        if (!cancelled) {
+          setToken(null);
+          setUser(null);
+        }
       });
     return () => {
       cancelled = true;
@@ -115,9 +122,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user]
   );
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const me = await api.get<BackendUser>("/auth/me");
+      const mapped = mapBackendUser(me);
+      localStorage.setItem("auth_user", JSON.stringify(mapped));
+      setUser(mapped);
+    } catch {
+      // silent — if it fails the stale user stays
+    }
+  }, []);
+
   return (
     <AuthContext.Provider
-      value={{ user, token, isAuthenticated: !!token, isLoading, login, logout, hasRole }}
+      value={{ user, token, isAuthenticated: !!token, isLoading, login, logout, hasRole, refreshUser }}
     >
       {children}
     </AuthContext.Provider>
@@ -135,6 +153,7 @@ export function useAuth(): AuthContextType {
       login: async () => {},
       logout: () => {},
       hasRole: () => false,
+      refreshUser: async () => {},
     };
   }
   return context;

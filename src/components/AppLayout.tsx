@@ -22,9 +22,14 @@ export function AppLayout() {
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
               {user?.full_name?.charAt(0) || "U"}
             </div>
-            <span className="text-sm text-muted-foreground hidden sm:inline">
-              {user?.full_name}
-            </span>
+            <div className="hidden sm:flex flex-col">
+              <span className="text-sm font-medium leading-tight">
+                {user?.full_name}
+              </span>
+              <span className="text-xs text-muted-foreground capitalize leading-tight">
+                {user?.role}
+              </span>
+            </div>
           </div>
         </header>
         <main className="flex-1 p-4 md:p-6">

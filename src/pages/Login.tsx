@@ -8,19 +8,28 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PawPrint, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { TrialTermsModal, useTrialTerms } from "@/components/TrialTermsModal";
 
 const QUICK_LOGINS = [
   { label: "Admin", email: "admin@miavet.com", password: "Admin@2026!", icon: "🛡️" },
-  { label: "Veterinarian", email: "drsmith@miavet.com", password: "Vet@2026!", icon: "🩺" },
-  { label: "Staff", email: "staff@miavet.com", password: "Staff@2026!", icon: "👤" },
 ];
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showTerms, setShowTerms] = useState(false);
   const { login, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { accepted: termsAccepted } = useTrialTerms();
+
+  const proceedAfterLogin = () => {
+    if (termsAccepted) {
+      navigate("/dashboard", { replace: true });
+    } else {
+      setShowTerms(true);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +39,7 @@ export default function Login() {
     }
     try {
       await login(email, password);
-      navigate("/dashboard", { replace: true });
+      proceedAfterLogin();
     } catch (err: any) {
       toast({
         title: "Login failed",
@@ -43,7 +52,7 @@ export default function Login() {
   const handleQuickLogin = async (qEmail: string, qPassword: string) => {
     try {
       await login(qEmail, qPassword);
-      navigate("/dashboard", { replace: true });
+      proceedAfterLogin();
     } catch (err: any) {
       toast({
         title: "Login failed",
@@ -110,24 +119,25 @@ export default function Login() {
                 <span className="bg-card px-2 text-muted-foreground">Quick Access</span>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {QUICK_LOGINS.map((q) => (
-                <Button
-                  key={q.label}
-                  variant="outline"
-                  size="sm"
-                  className="flex flex-col items-center gap-1 h-auto py-3 text-xs"
-                  disabled={isLoading}
-                  onClick={() => handleQuickLogin(q.email, q.password)}
-                >
-                  <span className="text-lg">{q.icon}</span>
-                  <span>{q.label}</span>
-                </Button>
-              ))}
-            </div>
+            <Button
+              variant="outline"
+              className="w-full flex items-center justify-center gap-2 h-auto py-3"
+              disabled={isLoading}
+              onClick={() => handleQuickLogin(QUICK_LOGINS[0].email, QUICK_LOGINS[0].password)}
+            >
+              <span className="text-lg">{QUICK_LOGINS[0].icon}</span>
+              <span>Continue as Admin</span>
+            </Button>
           </div>
         </CardContent>
       </Card>
+      <TrialTermsModal
+        open={showTerms}
+        onAccept={() => {
+          setShowTerms(false);
+          navigate("/dashboard", { replace: true });
+        }}
+      />
     </div>
   );
 }

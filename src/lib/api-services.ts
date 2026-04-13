@@ -94,12 +94,19 @@ export function mapInventoryItem(i: any): InventoryItem {
 }
 
 export function mapInvoice(inv: any): Invoice {
-  const pet = inv.pet_name ? { id: inv.pet_id, name: inv.pet_name } : undefined;
-  const owner = inv.owner_name ? { id: inv.owner_id, full_name: inv.owner_name } : undefined;
+  // Build pet/owner from flat fields (list endpoint) or nested objects (detail/join)
+  const pet = inv.pets ? mapPet(inv.pets)
+    : inv.pet?.name ? inv.pet
+    : inv.pet_name ? { id: inv.pet_id, name: inv.pet_name }
+    : undefined;
+  const owner = inv.pet_owners ? mapOwner(inv.pet_owners)
+    : inv.owner?.full_name ? inv.owner
+    : inv.owner_name ? { id: inv.owner_id, full_name: inv.owner_name }
+    : undefined;
   return {
     ...inv,
-    pet: inv.pets ? mapPet(inv.pets) : inv.pet ? mapPet(inv.pet) : undefined,
-    owner: inv.pet_owners ? mapOwner(inv.pet_owners) : inv.owner ? mapOwner(inv.owner) : undefined,
+    pet,
+    owner,
     line_items: (() => { const raw = inv.line_items; if (!raw) return []; if (typeof raw === "string") { try { return JSON.parse(raw); } catch { return []; } } return Array.isArray(raw) ? raw : []; })(),
     subtotal: inv.amount ?? inv.subtotal ?? 0,
     discount: inv.discount ?? 0,
@@ -415,7 +422,7 @@ export async function createStaff(data: Partial<User>): Promise<User> {
     email: data.email || "",
     role: data.role || "staff",
     phone: data.phone || null,
-    password: (data as any).password || "changeme123",
+    password: (data as any).password || `Mia${Date.now().toString(36)}!`,
   };
   return mapUser(await api.post<any>("/staff", payload));
 }

@@ -7,12 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 
-type Sentiment = "positive" | "neutral" | "negative" | null;
+type Sentiment = "up" | "neutral" | "down" | null;
 
 const SENTIMENTS = [
-  { value: "positive" as const, icon: ThumbsUp, label: "Good" },
+  { value: "up" as const, icon: ThumbsUp, label: "Good" },
   { value: "neutral" as const, icon: Minus, label: "Neutral" },
-  { value: "negative" as const, icon: ThumbsDown, label: "Bad" },
+  { value: "down" as const, icon: ThumbsDown, label: "Bad" },
 ];
 
 export function FeedbackWidget() {
